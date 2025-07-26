@@ -43,8 +43,8 @@ Un sistema completo de Punto de Venta diseñado específicamente para el mercado
 
 ### 1. Clonar el repositorio
 ```bash
-git clone <repository-url>
-cd pos
+git clone https://github.com/tu-usuario/pos-dominicana.git
+cd pos-dominicana
 ```
 
 ### 2. Instalar dependencias
