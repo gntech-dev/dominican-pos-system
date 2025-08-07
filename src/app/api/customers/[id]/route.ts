@@ -16,7 +16,7 @@ const updateCustomerSchema = z.object({
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const authResult = await requireAuth(['ADMIN', 'MANAGER', 'CASHIER'])(req)

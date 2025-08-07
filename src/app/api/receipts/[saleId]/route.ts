@@ -7,12 +7,15 @@ import type { ReceiptData } from '@/types'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { saleId: string } }
+  { params }: { params: Promise<{ saleId: string }> }
 ) {
   try {
-    const { saleId } = await params
+    const { saleId } = await params;
+    console.log('Receipt API - Received saleId:', saleId);
+    console.log('Receipt API - saleId type:', typeof saleId);
     
-    if (!saleId) {
+    if (!saleId || saleId === 'undefined') {
+      console.log('Receipt API - Invalid saleId:', saleId);
       return NextResponse.json(
         { error: 'ID de venta inválido' },
         { status: 400 }
@@ -82,8 +85,8 @@ export async function GET(
         cashierId: sale.cashierId,
         customerId: sale.customerId || undefined,
         ncfSequenceId: sale.ncfSequenceId || undefined,
-        createdAt: sale.createdAt,
-        updatedAt: sale.updatedAt,
+        createdAt: sale.createdAt.toISOString(),
+        updatedAt: sale.updatedAt.toISOString(),
         items: sale.items.map(item => ({
           id: item.id,
           quantity: item.quantity,
@@ -101,9 +104,28 @@ export async function GET(
           }
         }))
       },
+      cashier: {
+        firstName: sale.cashier.firstName,
+        lastName: sale.cashier.lastName
+      },
+      customer: sale.customer ? {
+        name: sale.customer.name,
+        rnc: sale.customer.rnc || undefined,
+        cedula: sale.customer.cedula || undefined,
+        address: sale.customer.address || undefined,
+        email: sale.customer.email || undefined
+      } : ((sale as any).customerRnc && (sale as any).customerName) ? {
+        // Walk-in customer data
+        name: (sale as any).customerName as string,
+        rnc: (sale as any).customerRnc as string,
+        cedula: undefined,
+        address: undefined,
+        email: undefined
+      } : undefined,
+      // Backward compatibility fields
       cashierName: `${sale.cashier.firstName} ${sale.cashier.lastName}`,
-      customerName: sale.customer?.name,
-      customerRnc: sale.customer?.rnc || undefined
+      customerName: sale.customer?.name || (sale as any).customerName as string | undefined,
+      customerRnc: sale.customer?.rnc || (sale as any).customerRnc as string | undefined
     }
 
     return NextResponse.json(receiptData)

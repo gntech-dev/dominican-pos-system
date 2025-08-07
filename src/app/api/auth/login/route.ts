@@ -69,15 +69,27 @@ export async function POST(req: NextRequest) {
     })
 
     // Remove password from response
-    const { password: _, ...userWithoutPassword } = user
+    const { password: _password, ...userWithoutPassword } = user
 
-    return NextResponse.json({
+    // Create response with token
+    const response = NextResponse.json({
       success: true,
       data: {
         user: userWithoutPassword,
         token,
       },
     })
+
+    // Set HTTP-only cookie for middleware authentication
+    response.cookies.set('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60, // 24 hours
+      path: '/'
+    })
+
+    return response
   } catch (error) {
     console.error('Login error:', error)
     

@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import { Fragment } from 'react'
-import Navigation from '@/components/ui/Navigation'
-import { validateRNC, validateCedula, formatCurrency } from '@/utils/dominican-validators'
+import { validateRNC, validateCedula } from '@/utils/dominican-validators'
 
 interface Customer {
   id: number
@@ -55,6 +54,10 @@ export default function CustomersPage() {
   })
   const [searchTerm, setSearchTerm] = useState('')
   const [documentTypeFilter, setDocumentTypeFilter] = useState<string>('')
+  const [statusFilter, setStatusFilter] = useState<string>('')
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards')
+  const [selectedCustomers, setSelectedCustomers] = useState<number[]>([])
+  const [showCustomerDetails, setShowCustomerDetails] = useState<Customer | null>(null)
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 20,
@@ -64,7 +67,7 @@ export default function CustomersPage() {
 
   useEffect(() => {
     fetchCustomers()
-  }, [searchTerm, documentTypeFilter, pagination.page])
+  }, [searchTerm, documentTypeFilter, statusFilter, pagination.page])
 
   const fetchCustomers = async () => {
     try {
@@ -73,6 +76,7 @@ export default function CustomersPage() {
       
       if (searchTerm) params.append('search', searchTerm)
       if (documentTypeFilter) params.append('documentType', documentTypeFilter)
+      if (statusFilter) params.append('status', statusFilter)
       params.append('page', pagination.page.toString())
       params.append('limit', pagination.limit.toString())
       
@@ -224,20 +228,92 @@ export default function CustomersPage() {
     setError(null)
   }
 
+  const toggleCustomerSelection = (customerId: number) => {
+    setSelectedCustomers(prev => 
+      prev.includes(customerId)
+        ? prev.filter(id => id !== customerId)
+        : [...prev, customerId]
+    )
+  }
+
+  const toggleAllCustomers = () => {
+    setSelectedCustomers(prev => 
+      prev.length === customers.length ? [] : customers.map(c => c.id)
+    )
+  }
+
+  const handleBulkStatusChange = async (isActive: boolean) => {
+    if (selectedCustomers.length === 0) return
+    
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch('/api/customers/bulk', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          customerIds: selectedCustomers,
+          isActive
+        }),
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        await fetchCustomers()
+        setSelectedCustomers([])
+      } else {
+        setError(data.error || 'Error en operación masiva')
+      }
+    } catch (err) {
+      setError('Error de conexión')
+    }
+  }
+
+  const getCustomerInitials = (name: string) => {
+    return name.split(' ')
+      .map(word => word[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
+  }
+
+  const getCustomerStatus = (customer: Customer) => {
+    if (!customer.isActive) return { label: 'Inactivo', color: 'bg-red-500' }
+    if (customer._count.sales >= 10) return { label: 'VIP', color: 'bg-purple-500' }
+    if (customer._count.sales >= 5) return { label: 'Frecuente', color: 'bg-blue-500' }
+    return { label: 'Nuevo', color: 'bg-green-500' }
+  }
+
+  const filteredCustomers = customers.filter(customer => {
+    if (statusFilter === 'vip' && customer._count.sales < 10) return false
+    if (statusFilter === 'frequent' && (customer._count.sales < 5 || customer._count.sales >= 10)) return false
+    if (statusFilter === 'new' && customer._count.sales >= 5) return false
+    if (statusFilter === 'inactive' && customer.isActive) return false
+    return true
+  })
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navigation currentPage="customers" />
-
-      <div className="px-6 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Gestión de Clientes</h1>
-          <p className="text-sm text-gray-600">Administrar clientes del sistema</p>
+          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Gestión de Clientes</h1>
+            <p className="text-gray-600">Administrar clientes del sistema</p>
+          </div>
         </div>
 
         {/* Error Message */}
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
             <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
               <div className="ml-3">
                 <h3 className="text-sm font-medium text-red-800">Error</h3>
                 <div className="mt-2 text-sm text-red-700">{error}</div>
@@ -247,8 +323,8 @@ export default function CustomersPage() {
         )}
 
         {/* Controls */}
-        <div className="mb-6 bg-white p-4 rounded-lg shadow">
-          <div className="flex flex-col md:flex-row gap-4">
+        <div className="mb-6 bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+          <div className="flex flex-col lg:flex-row gap-4 mb-4">
             <div className="flex-1 relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -260,26 +336,58 @@ export default function CustomersPage() {
                 placeholder="Buscar clientes por nombre, email, teléfono o documento..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
               />
             </div>
             
-            <div className="flex items-center space-x-4">
-              <div className="relative">
-                <select
-                  value={documentTypeFilter}
-                  onChange={(e) => setDocumentTypeFilter(e.target.value)}
-                  className="pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+            <div className="flex items-center space-x-3">
+              <select
+                value={documentTypeFilter}
+                onChange={(e) => setDocumentTypeFilter(e.target.value)}
+                className="px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
+              >
+                <option value="">Todos los documentos</option>
+                <option value="CEDULA">Cédula</option>
+                <option value="RNC">RNC</option>
+              </select>
+              
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white"
+              >
+                <option value="">Todos los estados</option>
+                <option value="vip">VIP (10+ ventas)</option>
+                <option value="frequent">Frecuente (5-9 ventas)</option>
+                <option value="new">Nuevo (0-4 ventas)</option>
+                <option value="inactive">Inactivo</option>
+              </select>
+
+              <div className="flex bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('cards')}
+                  className={`p-2 rounded-md transition-all ${
+                    viewMode === 'cards' 
+                      ? 'bg-white text-gray-900 shadow-sm' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
                 >
-                  <option value="">Todos los documentos</option>
-                  <option value="CEDULA">Cédula</option>
-                  <option value="RNC">RNC</option>
-                </select>
-                <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                  <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                   </svg>
-                </div>
+                </button>
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`p-2 rounded-md transition-all ${
+                    viewMode === 'table' 
+                      ? 'bg-white text-gray-900 shadow-sm' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  </svg>
+                </button>
               </div>
               
               <button
@@ -287,169 +395,360 @@ export default function CustomersPage() {
                   resetForm()
                   setShowModal(true)
                 }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center space-x-2"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center space-x-2 shadow-sm transition-all"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
                 </svg>
                 <span>Nuevo Cliente</span>
               </button>
             </div>
           </div>
-        </div>
 
-        {/* Customers Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Cliente
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Documento
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Contacto
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ventas
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Estado
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
-                      Cargando clientes...
-                    </td>
-                  </tr>
-                ) : customers.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
-                      No se encontraron clientes
-                    </td>
-                  </tr>
-                ) : (
-                  customers.map((customer) => (
-                    <tr key={customer.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {customer.name}
-                          </div>
-                          {customer.address && (
-                            <div className="text-sm text-gray-500">
-                              {customer.address}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          {customer.documentType}: {customer.documentNumber}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          {customer.email && (
-                            <div>{customer.email}</div>
-                          )}
-                          {customer.phone && (
-                            <div className="text-gray-500">{customer.phone}</div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          {customer._count.sales} ventas
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          customer.isActive
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {customer.isActive ? 'Activo' : 'Inactivo'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm font-medium">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => handleEdit(customer)}
-                            className="text-blue-600 hover:text-blue-900 flex items-center space-x-1"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                            <span>Editar</span>
-                          </button>
-                          {customer._count.sales === 0 && (
-                            <button
-                              onClick={() => handleDelete(customer)}
-                              className="text-red-600 hover:text-red-900 flex items-center space-x-1"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                              <span>Eliminar</span>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          {pagination.pages > 1 && (
-            <div className="bg-gray-50 px-6 py-3 flex items-center justify-between">
-              <div className="text-sm text-gray-700">
-                Mostrando {((pagination.page - 1) * pagination.limit) + 1} a{' '}
-                {Math.min(pagination.page * pagination.limit, pagination.total)} de{' '}
-                {pagination.total} resultados
-              </div>
+          {/* Bulk Actions */}
+          {selectedCustomers.length > 0 && (
+            <div className="flex items-center justify-between bg-blue-50 rounded-lg p-4 border border-blue-200">
+              <span className="text-gray-900 font-medium">
+                {selectedCustomers.length} cliente{selectedCustomers.length !== 1 ? 's' : ''} seleccionado{selectedCustomers.length !== 1 ? 's' : ''}
+              </span>
               <div className="flex space-x-2">
                 <button
-                  onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-                  disabled={pagination.page === 1}
-                  className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                  onClick={() => handleBulkStatusChange(true)}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm shadow-sm"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-                  </svg>
-                  <span>Anterior</span>
+                  Activar
                 </button>
                 <button
-                  onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-                  disabled={pagination.page === pagination.pages}
-                  className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                  onClick={() => handleBulkStatusChange(false)}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm shadow-sm"
                 >
-                  <span>Siguiente</span>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                  </svg>
+                  Desactivar
+                </button>
+                <button
+                  onClick={() => setSelectedCustomers([])}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm shadow-sm"
+                >
+                  Cancelar
                 </button>
               </div>
             </div>
           )}
         </div>
+
+        {/* Customers Display */}
+        {viewMode === 'cards' ? (
+          /* Cards View */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {loading ? (
+              Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm animate-pulse">
+                  <div className="flex items-center space-x-4 mb-4">
+                    <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
+                    <div className="flex-1">
+                      <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                      <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-3 bg-gray-200 rounded"></div>
+                    <div className="h-3 bg-gray-200 rounded w-3/4"></div>
+                  </div>
+                </div>
+              ))
+            ) : filteredCustomers.length === 0 ? (
+              <div className="col-span-full bg-white rounded-lg border border-gray-200 p-12 shadow-sm text-center">
+                <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <p className="text-gray-600 text-lg">No se encontraron clientes</p>
+                <p className="text-gray-500 text-sm mt-2">Intenta ajustar los filtros de búsqueda</p>
+              </div>
+            ) : (
+              filteredCustomers.map((customer) => {
+                const status = getCustomerStatus(customer)
+                const isSelected = selectedCustomers.includes(customer.id)
+                
+                return (
+                  <div 
+                    key={customer.id} 
+                    className={`bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group ${
+                      isSelected ? 'ring-2 ring-blue-500 border-blue-200' : ''
+                    }`}
+                    onClick={() => toggleCustomerSelection(customer.id)}
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-12 h-12 rounded-full ${status.color} flex items-center justify-center text-white font-bold text-sm`}>
+                          {getCustomerInitials(customer.name)}
+                        </div>
+                        <div>
+                          <h3 className="text-gray-900 font-semibold text-lg leading-tight">{customer.name}</h3>
+                          <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${status.color} text-white mt-1`}>
+                            {status.label}
+                          </span>
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleCustomerSelection(customer.id)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-offset-0"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+
+                    <div className="space-y-3 text-sm">
+                      <div className="flex items-center space-x-2 text-gray-700">
+                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>{customer.documentType}: {customer.documentNumber}</span>
+                      </div>
+                      
+                      {customer.email && (
+                        <div className="flex items-center space-x-2 text-gray-700">
+                          <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                          </svg>
+                          <span className="truncate">{customer.email}</span>
+                        </div>
+                      )}
+                      
+                      {customer.phone && (
+                        <div className="flex items-center space-x-2 text-gray-700">
+                          <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                          <span>{customer.phone}</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+                        <div className="flex items-center space-x-2 text-gray-700">
+                          <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                          </svg>
+                          <span>{customer._count.sales} ventas</span>
+                        </div>
+                        
+                        <div className="flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setShowCustomerDetails(customer)
+                            }}
+                            className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleEdit(customer)
+                            }}
+                            className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        ) : (
+          /* Table View */
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-4 text-left">
+                      <input
+                        type="checkbox"
+                        checked={selectedCustomers.length === customers.length && customers.length > 0}
+                        onChange={toggleAllCustomers}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-offset-0"
+                      />
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 uppercase tracking-wider">
+                      Cliente
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 uppercase tracking-wider">
+                      Documento
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 uppercase tracking-wider">
+                      Contacto
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 uppercase tracking-wider">
+                      Ventas
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 uppercase tracking-wider">
+                      Estado
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 uppercase tracking-wider">
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {loading ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i} className="animate-pulse">
+                        <td className="px-6 py-4"><div className="w-4 h-4 bg-gray-200 rounded"></div></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-32"></div></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-40"></div></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-16"></div></td>
+                        <td className="px-6 py-4"><div className="h-6 bg-gray-200 rounded-full w-20"></div></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                      </tr>
+                    ))
+                  ) : filteredCustomers.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                        <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        No se encontraron clientes
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredCustomers.map((customer) => {
+                      const status = getCustomerStatus(customer)
+                      const isSelected = selectedCustomers.includes(customer.id)
+                      
+                      return (
+                        <tr key={customer.id} className={`hover:bg-gray-50 transition-colors ${isSelected ? 'bg-blue-50' : ''}`}>
+                          <td className="px-6 py-4">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleCustomerSelection(customer.id)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-offset-0"
+                            />
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center space-x-3">
+                              <div className={`w-10 h-10 rounded-full ${status.color} flex items-center justify-center text-white font-bold text-sm`}>
+                                {getCustomerInitials(customer.name)}
+                              </div>
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">
+                                  {customer.name}
+                                </div>
+                                {customer.address && (
+                                  <div className="text-sm text-gray-500 truncate max-w-xs">
+                                    {customer.address}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-900">
+                              {customer.documentType}: {customer.documentNumber}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm">
+                              {customer.email && (
+                                <div className="text-gray-900 truncate max-w-xs">{customer.email}</div>
+                              )}
+                              {customer.phone && (
+                                <div className="text-gray-500">{customer.phone}</div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-900">
+                              {customer._count.sales} ventas
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${status.color} text-white`}>
+                              {status.label}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center space-x-3">
+                              <button
+                                onClick={() => setShowCustomerDetails(customer)}
+                                className="text-gray-500 hover:text-gray-700 flex items-center space-x-1 hover:bg-gray-100 p-2 rounded-lg transition-all"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => handleEdit(customer)}
+                                className="text-blue-500 hover:text-blue-700 flex items-center space-x-1 hover:bg-blue-50 p-2 rounded-lg transition-all"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                              {customer._count.sales === 0 && (
+                                <button
+                                  onClick={() => handleDelete(customer)}
+                                  className="text-red-500 hover:text-red-700 flex items-center space-x-1 hover:bg-red-50 p-2 rounded-lg transition-all"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {pagination.pages > 1 && (
+              <div className="bg-white/5 px-6 py-4 flex items-center justify-between border-t border-white/10">
+                <div className="text-sm text-white/70">
+                  Mostrando {((pagination.page - 1) * pagination.limit) + 1} a{' '}
+                  {Math.min(pagination.page * pagination.limit, pagination.total)} de{' '}
+                  {pagination.total} resultados
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                    disabled={pagination.page === 1}
+                    className="px-4 py-2 text-sm bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-all"
+                  >
+                    Anterior
+                  </button>
+                  <button
+                    onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                    disabled={pagination.page === pagination.pages}
+                    className="px-4 py-2 text-sm bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-all"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Modal */}
       <Transition appear show={showModal} as={Fragment}>
-        <Dialog as="div" className="relative z-10" onClose={() => setShowModal(false)}>
+        <Dialog as="div" className="relative z-50" onClose={() => setShowModal(false)}>
           <Transition.Child
             as={Fragment}
             enter="ease-out duration-300"
@@ -459,7 +758,7 @@ export default function CustomersPage() {
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
           >
-            <div className="fixed inset-0 bg-black bg-opacity-25" />
+            <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-md" />
           </Transition.Child>
 
           <div className="fixed inset-0 overflow-y-auto">
@@ -473,14 +772,14 @@ export default function CustomersPage() {
                 leaveFrom="opacity-100 scale-100"
                 leaveTo="opacity-0 scale-95"
               >
-                <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-                  <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900 mb-4">
+                <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-xl bg-white shadow-2xl border border-gray-200 p-6 text-left align-middle transition-all">
+                  <Dialog.Title as="h3" className="text-xl font-semibold leading-6 text-gray-900 mb-6">
                     {editingCustomer ? 'Editar Cliente' : 'Nuevo Cliente'}
                   </Dialog.Title>
 
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         Nombre *
                       </label>
                       <input
@@ -488,27 +787,27 @@ export default function CustomersPage() {
                         required
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                         placeholder="Nombre completo"
                       />
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
                           Tipo de Documento *
                         </label>
                         <select
                           value={formData.documentType}
                           onChange={(e) => setFormData({ ...formData, documentType: e.target.value as 'RNC' | 'CEDULA' })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                         >
                           <option value="CEDULA">Cédula</option>
                           <option value="RNC">RNC</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
                           Número *
                         </label>
                         <input
@@ -516,80 +815,210 @@ export default function CustomersPage() {
                           required
                           value={formData.documentNumber}
                           onChange={(e) => setFormData({ ...formData, documentNumber: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                           placeholder={formData.documentType === 'RNC' ? '123456789' : '12345678901'}
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         Email
                       </label>
                       <input
                         type="email"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                         placeholder="cliente@email.com"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         Teléfono
                       </label>
                       <input
                         type="tel"
                         value={formData.phone}
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                         placeholder="(809) 123-4567"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         Dirección
                       </label>
                       <textarea
                         value={formData.address}
                         onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                         rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
                         placeholder="Dirección completa"
                       />
                     </div>
 
-                    <div className="flex items-center">
+                    <div className="flex items-center space-x-3">
                       <input
                         type="checkbox"
                         id="isActive"
                         checked={formData.isActive}
                         onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                        className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 bg-white"
                       />
                       <label htmlFor="isActive" className="text-sm text-gray-700">
                         Cliente activo
                       </label>
                     </div>
 
-                    <div className="flex space-x-3 pt-4">
+                    <div className="flex space-x-3 pt-6">
                       <button
                         type="button"
                         onClick={() => setShowModal(false)}
-                        className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                        className="flex-1 bg-gray-100 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-200 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors border border-gray-300"
                       >
                         Cancelar
                       </button>
                       <button
                         type="submit"
-                        className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                        className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm"
                       >
                         {editingCustomer ? 'Actualizar' : 'Crear'}
                       </button>
                     </div>
                   </form>
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
+
+      {/* Customer Details Modal */}
+      <Transition appear show={!!showCustomerDetails} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={() => setShowCustomerDetails(null)}>
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+          </Transition.Child>
+
+          <div className="fixed inset-0 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 text-center">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl backdrop-blur-lg bg-white/10 border border-white/20 p-6 text-left align-middle shadow-xl transition-all">
+                  {showCustomerDetails && (
+                    <>
+                      <Dialog.Title as="h3" className="text-xl font-semibold leading-6 text-white mb-6 flex items-center space-x-3">
+                        <div className={`w-12 h-12 rounded-full ${getCustomerStatus(showCustomerDetails).color} flex items-center justify-center text-white font-bold`}>
+                          {getCustomerInitials(showCustomerDetails.name)}
+                        </div>
+                        <div>
+                          <div>{showCustomerDetails.name}</div>
+                          <div className="text-sm text-white/60">{showCustomerDetails.documentType}: {showCustomerDetails.documentNumber}</div>
+                        </div>
+                      </Dialog.Title>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Contact Information */}
+                        <div className="space-y-4">
+                          <h4 className="text-lg font-medium text-white border-b border-white/20 pb-2">Información de Contacto</h4>
+                          
+                          {showCustomerDetails.email && (
+                            <div className="flex items-center space-x-3">
+                              <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                              </svg>
+                              <span className="text-white/80">{showCustomerDetails.email}</span>
+                            </div>
+                          )}
+                          
+                          {showCustomerDetails.phone && (
+                            <div className="flex items-center space-x-3">
+                              <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                              </svg>
+                              <span className="text-white/80">{showCustomerDetails.phone}</span>
+                            </div>
+                          )}
+                          
+                          {showCustomerDetails.address && (
+                            <div className="flex items-start space-x-3">
+                              <svg className="w-5 h-5 text-white/60 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                              <span className="text-white/80">{showCustomerDetails.address}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Customer Statistics */}
+                        <div className="space-y-4">
+                          <h4 className="text-lg font-medium text-white border-b border-white/20 pb-2">Estadísticas</h4>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-white/10 rounded-xl p-4 border border-white/20">
+                              <div className="text-2xl font-bold text-white">{showCustomerDetails._count.sales}</div>
+                              <div className="text-sm text-white/60">Total de Ventas</div>
+                            </div>
+                            
+                            <div className="bg-white/10 rounded-xl p-4 border border-white/20">
+                              <div className="text-2xl font-bold text-white">
+                                {getCustomerStatus(showCustomerDetails).label}
+                              </div>
+                              <div className="text-sm text-white/60">Estado del Cliente</div>
+                            </div>
+                          </div>
+
+                          <div className="bg-white/10 rounded-xl p-4 border border-white/20">
+                            <div className="text-sm text-white/60 mb-2">Cliente desde</div>
+                            <div className="text-white">
+                              {new Date(showCustomerDetails.createdAt).toLocaleDateString('es-DO', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end space-x-3 pt-6 border-t border-white/20 mt-6">
+                        <button
+                          onClick={() => setShowCustomerDetails(null)}
+                          className="px-6 py-3 bg-white/20 text-white rounded-xl hover:bg-white/30 focus:ring-2 focus:ring-white/50 transition-all border border-white/30"
+                        >
+                          Cerrar
+                        </button>
+                        <button
+                          onClick={() => {
+                            handleEdit(showCustomerDetails)
+                            setShowCustomerDetails(null)
+                          }}
+                          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 focus:ring-2 focus:ring-purple-500 transition-all shadow-lg"
+                        >
+                          Editar Cliente
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </Dialog.Panel>
               </Transition.Child>
             </div>

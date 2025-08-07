@@ -6,7 +6,7 @@ export type UserRole = 'ADMIN' | 'MANAGER' | 'CASHIER'
 
 export type CustomerType = 'INDIVIDUAL' | 'BUSINESS'
 
-export type NcfType = 'B01' | 'B02' | 'B03' | 'B04'
+export type NcfType = 'B01' | 'B02' | 'B03' | 'B04' | 'B11' | 'B12' | 'B13' | 'B14' | 'B15' | 'B16' | 'B17'
 
 export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'CHECK' | 'CREDIT'
 
@@ -136,8 +136,8 @@ export interface AuditLog {
   action: AuditAction
   entityType: string
   entityId: string
-  oldValue?: any
-  newValue?: any
+  oldValue?: Record<string, unknown>
+  newValue?: Record<string, unknown>
   userId: string
   ipAddress?: string
   userAgent?: string
@@ -213,6 +213,9 @@ export interface CreateProductForm {
 
 export interface CreateSaleForm {
   customerId?: string
+  customerRnc?: string // For walk-in customers with RNC
+  customerName?: string // For walk-in customers with RNC
+  ncfType: NcfType
   paymentMethod: PaymentMethod
   notes?: string
   items: CreateSaleItemForm[]
@@ -261,13 +264,49 @@ export interface PaginatedResponse<T> {
 
 // Receipt types
 export interface ReceiptData {
-  sale: Sale
+  sale: {
+    id: string
+    saleNumber: string
+    ncf?: string
+    ncfType?: string
+    subtotal: number | string
+    itbis: number | string
+    total: number | string
+    paymentMethod: string
+    notes?: string
+    createdAt: string
+    items: Array<{
+      quantity: number
+      unitPrice: number | string
+      total: number | string
+      product: {
+        name: string
+        code: string
+        description?: string
+      }
+    }>
+  }
   business: {
     name: string
     rnc: string
     address: string
     phone: string
+    email?: string
+    website?: string
+    slogan?: string
   }
+  cashier: {
+    firstName: string
+    lastName: string
+  }
+  customer?: {
+    name: string
+    rnc?: string
+    cedula?: string
+    address?: string
+    email?: string
+  }
+  // Backward compatibility fields
   cashierName: string
   customerName?: string
   customerRnc?: string

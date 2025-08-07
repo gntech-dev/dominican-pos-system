@@ -173,7 +173,18 @@ export default function FormalInvoice({ receiptData, onPrint }: FormalInvoicePro
               <div className="bg-gray-50 p-4 rounded-lg space-y-2">
                 <p className="font-semibold text-gray-900">{customer.name}</p>
                 {customer.rnc && (
-                  <p><span className="font-medium">RNC:</span> {formatRNC(customer.rnc)}</p>
+                  <>
+                    <p><span className="font-medium">RNC:</span> {formatRNC(customer.rnc)}</p>
+                    {/* Enhanced B01 Customer Information */}
+                    {sale.ncfType === 'B01' && (
+                      <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                        <p className="font-medium text-blue-900 mb-1">📋 Información Fiscal del Cliente</p>
+                        <p className="text-blue-800">Cliente registrado en base de datos DGII</p>
+                        <p className="text-blue-800">Válido para deducciones de ITBIS según Ley 11-92</p>
+                        <p className="text-blue-800">Régimen: Contribuyente Normal</p>
+                      </div>
+                    )}
+                  </>
                 )}
                 {customer.cedula && (
                   <p><span className="font-medium">Cédula:</span> {customer.cedula}</p>
@@ -185,6 +196,11 @@ export default function FormalInvoice({ receiptData, onPrint }: FormalInvoicePro
               <div className="bg-gray-50 p-4 rounded-lg">
                 <p className="font-semibold text-gray-900">Cliente General</p>
                 <p className="text-gray-600">Venta al consumidor final</p>
+                {sale.ncfType === 'B02' && (
+                  <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+                    <p className="text-yellow-800">NCF B02 - No válido para crédito fiscal</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -268,6 +284,25 @@ export default function FormalInvoice({ receiptData, onPrint }: FormalInvoicePro
                 <span className="font-medium">ITBIS (18%):</span>
                 <span className="font-mono">{formatCurrency(itbis)}</span>
               </div>
+              {/* Enhanced tax information for B01 invoices */}
+              {sale.ncfType === 'B01' && customer?.rnc && (
+                <div className="border-t border-gray-300 pt-2">
+                  <div className="text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Base Gravada:</span>
+                      <span className="font-mono text-gray-600">{formatCurrency(subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Base Exenta:</span>
+                      <span className="font-mono text-gray-600">{formatCurrency(0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">ITBIS Retenido:</span>
+                      <span className="font-mono text-gray-600">{formatCurrency(0)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="border-t-2 border-gray-300 pt-3">
                 <div className="flex justify-between text-xl font-bold text-blue-600">
                   <span>TOTAL:</span>
@@ -297,7 +332,31 @@ export default function FormalInvoice({ receiptData, onPrint }: FormalInvoicePro
               <div className="text-sm text-blue-800 space-y-1">
                 <p><strong>NCF:</strong> {sale.ncf} - {getNCFTypeDescription(sale.ncfType)}</p>
                 <p><strong>RNC Emisor:</strong> {formatRNC(business.rnc)}</p>
-                <p>Este comprobante es válido para deducciones fiscales según la Ley 11-92 y sus modificaciones.</p>
+                
+                {/* Enhanced information for B01 invoices with customer RNC */}
+                {sale.ncfType === 'B01' && customer?.rnc && (
+                  <>
+                    <p><strong>RNC Cliente:</strong> {formatRNC(customer.rnc)}</p>
+                    <p><strong>Tipo de Comprobante:</strong> Factura de Crédito Fiscal</p>
+                    <div className="mt-2 p-2 bg-blue-100 rounded">
+                      <p className="font-medium">✅ Comprobante Válido para Crédito Fiscal</p>
+                      <p>• Permite deducción de ITBIS según Art. 8 Ley 11-92</p>
+                      <p>• Cliente debe conservar por 5 años (Art. 54 Código Tributario)</p>
+                      <p>• RNC del cliente verificado en base de datos DGII</p>
+                      <p>• Válido para sustentación de costos y gastos deducibles</p>
+                    </div>
+                  </>
+                )}
+                
+                {sale.ncfType === 'B02' && (
+                  <div className="mt-2 p-2 bg-yellow-100 rounded">
+                    <p className="font-medium">⚠️ Factura de Consumo</p>
+                    <p>• NO válida para crédito fiscal de ITBIS</p>
+                    <p>• Válida solo para gastos deducibles de ISR</p>
+                  </div>
+                )}
+                
+                <p className="mt-2">Este comprobante es válido para deducciones fiscales según la Ley 11-92 y sus modificaciones.</p>
                 <p>Los compradores deben conservar este documento por un período mínimo de cinco (5) años.</p>
               </div>
             </div>

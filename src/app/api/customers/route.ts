@@ -42,11 +42,20 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if document number already exists
-    const existingCustomer = await prisma.customer.findFirst({
-      where: {
-        documentNumber: customerData.documentNumber,
-      },
-    })
+    let existingCustomer = null
+    if (customerData.documentType === 'RNC') {
+      existingCustomer = await prisma.customer.findFirst({
+        where: {
+          rnc: customerData.documentNumber,
+        },
+      })
+    } else if (customerData.documentType === 'CEDULA') {
+      existingCustomer = await prisma.customer.findFirst({
+        where: {
+          cedula: customerData.documentNumber,
+        },
+      })
+    }
 
     if (existingCustomer) {
       return NextResponse.json(
@@ -55,9 +64,30 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Prepare customer data for creation
+    const createData: any = {
+      name: customerData.name,
+      email: customerData.email,
+      phone: customerData.phone,
+      address: customerData.address,
+      isActive: customerData.isActive,
+      customerType: customerData.documentType === 'RNC' ? 'BUSINESS' : 'INDIVIDUAL',
+    }
+
+    // Set the appropriate document field
+    if (customerData.documentType === 'RNC') {
+      createData.rnc = customerData.documentNumber
+    } else if (customerData.documentType === 'CEDULA') {
+      createData.cedula = customerData.documentNumber
+    }
+
     const customer = await prisma.customer.create({
-      data: customerData,
+      data: createData,
     })
+
+    // Determine the document info for logging
+    const documentType = customer.rnc ? 'RNC' : 'CEDULA'
+    const documentNumber = customer.rnc || customer.cedula
 
     // Log the creation
     await prisma.auditLog.create({
@@ -67,8 +97,8 @@ export async function POST(req: NextRequest) {
         entityId: customer.id,
         newValue: {
           name: customer.name,
-          documentType: customer.documentType,
-          documentNumber: customer.documentNumber,
+          documentType: documentType,
+          documentNumber: documentNumber,
         },
         userId: authResult.user.userId,
         ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown',
@@ -76,9 +106,16 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    // Return customer with computed fields for compatibility
+    const responseCustomer = {
+      ...customer,
+      documentType: documentType,
+      documentNumber: documentNumber,
+    }
+
     return NextResponse.json({
       success: true,
-      data: customer,
+      data: responseCustomer,
     })
   } catch (error) {
     console.error('Create customer error:', error)
@@ -119,12 +156,15 @@ export async function GET(req: NextRequest) {
         { name: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search, mode: 'insensitive' } },
-        { documentNumber: { contains: search, mode: 'insensitive' } },
+        { rnc: { contains: search, mode: 'insensitive' } },
+        { cedula: { contains: search, mode: 'insensitive' } },
       ]
     }
 
-    if (documentType) {
-      where.documentType = documentType
+    if (documentType === 'RNC') {
+      where.rnc = { not: null }
+    } else if (documentType === 'CEDULA') {
+      where.cedula = { not: null }
     }
 
     if (isActive !== null) {
@@ -146,10 +186,17 @@ export async function GET(req: NextRequest) {
       prisma.customer.count({ where }),
     ])
 
+    // Transform customers to include computed fields for compatibility
+    const transformedCustomers = customers.map(customer => ({
+      ...customer,
+      documentType: customer.rnc ? 'RNC' : 'CEDULA',
+      documentNumber: customer.rnc || customer.cedula,
+    }))
+
     return NextResponse.json({
       success: true,
       data: {
-        customers,
+        customers: transformedCustomers,
         pagination: {
           page,
           limit,

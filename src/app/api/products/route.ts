@@ -109,16 +109,16 @@ export async function GET(req: NextRequest) {
       where.categoryId = categoryId
     }
 
-    if (lowStock) {
-      where.stock = { lte: prisma.raw('min_stock') }
-    }
-
     if (isActive !== null) {
       where.isActive = isActive === 'true'
     }
 
-    const [products, total] = await Promise.all([
-      prisma.product.findMany({
+    let products, total
+
+    if (lowStock) {
+      // For low stock, we need to fetch all products and filter in memory
+      // since Prisma doesn't support field-to-field comparisons directly
+      const allProducts = await prisma.product.findMany({
         where,
         include: {
           category: {
@@ -126,11 +126,27 @@ export async function GET(req: NextRequest) {
           },
         },
         orderBy: { name: 'asc' },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.product.count({ where }),
-    ])
+      })
+      
+      const filteredProducts = allProducts.filter(p => p.stock <= p.minStock)
+      total = filteredProducts.length
+      products = filteredProducts.slice((page - 1) * limit, page * limit)
+    } else {
+      [products, total] = await Promise.all([
+        prisma.product.findMany({
+          where,
+          include: {
+            category: {
+              select: { id: true, name: true },
+            },
+          },
+          orderBy: { name: 'asc' },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+        prisma.product.count({ where }),
+      ])
+    }
 
     return NextResponse.json({
       success: true,

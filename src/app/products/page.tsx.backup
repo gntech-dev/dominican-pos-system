@@ -1,0 +1,439 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import ProductModal from '@/components/products/ProductModal'
+import DeleteProductModal from '@/components/products/DeleteProductModal'
+import { formatCurrency } from '@/utils/dominican-validators'
+import { Edit, Trash2, Plus, Search, AlertTriangle, Package, DollarSign } from 'lucide-react'
+
+interface Product {
+  id?: string
+  code: string
+  name: string
+  description?: string
+  price: number
+  cost: number
+  stock: number
+  minStock: number
+  isActive: boolean
+  taxable: boolean
+  categoryId?: string
+  category?: {
+    id: string
+    name: string
+  }
+}
+
+export default function ProductsPage() {
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [showLowStock, setShowLowStock] = useState(false)
+  const [showProductModal, setShowProductModal] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteProduct, setDeleteProduct] = useState<Product | null>(null)
+
+  // Convert database product to modal-compatible product
+  const toModalProduct = (product: any): Product => ({
+    id: product.id,
+    code: product.code,
+    name: product.name,
+    description: product.description || '',
+    price: product.price,
+    cost: product.cost || 0,
+    stock: product.stock,
+    minStock: product.minStock,
+    taxable: product.taxable,
+    isActive: product.isActive,
+    categoryId: product.category?.id,
+    category: product.category
+  })
+
+  useEffect(() => {
+    fetchProducts()
+  }, [search, showLowStock])
+
+  const fetchProducts = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const params = new URLSearchParams()
+      
+      if (search) params.append('search', search)
+      if (showLowStock) params.append('lowStock', 'true')
+      
+      const response = await fetch(`/api/products?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setProducts(data.data.products)
+      } else {
+        console.error('Failed to fetch products:', response.status)
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleProductSaved = (savedProduct: Product) => {
+    fetchProducts()
+    setShowProductModal(false)
+    setSelectedProduct(null)
+  }
+
+  const handleEditProduct = (product: any) => {
+    setSelectedProduct(toModalProduct(product))
+    setShowProductModal(true)
+  }
+
+  const handleDeleteProduct = (product: Product) => {
+    setDeleteProduct(product)
+    setShowDeleteModal(true)
+  }
+
+  const handleDeleteConfirmed = async (productId: string) => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/products/${productId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        fetchProducts()
+        setShowDeleteModal(false)
+        setDeleteProduct(null)
+      } else {
+        console.error('Failed to delete product')
+      }
+    } catch (error) {
+      console.error('Error deleting product:', error)
+    }
+  }
+
+  const getStockStatus = (product: Product) => {
+    if (product.stock <= 0) return 'text-red-600'
+    if (product.stock <= product.minStock) return 'text-yellow-600'
+    return 'text-green-600'
+  }
+
+  const getStockText = (product: Product) => {
+    if (product.stock <= 0) return 'Sin Stock'
+    if (product.stock <= product.minStock) return 'Stock Bajo'
+    return 'En Stock'
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Catálogo de Productos</h1>
+              <p className="text-gray-600 mt-2">Administra tu inventario y precios</p>
+            </div>
+            <button
+              onClick={() => {
+                setSelectedProduct(null)
+                setShowProductModal(true)
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Agregar Producto</span>
+            </button>
+          </div>
+        </div>
+            <h1 className="text-3xl font-bold text-white mb-2">Gestión de Productos</h1>
+            <p className="text-white/80">Administrar inventario y productos del sistema</p>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="mb-8">
+          <div className="backdrop-blur-lg bg-white/10 rounded-2xl border border-white/20 p-6 shadow-xl">
+            <div className="flex flex-col lg:flex-row gap-6">
+              <div className="flex-1 relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Search className="h-5 w-5 text-white/60" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Buscar productos por código, nombre o descripción..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 bg-white text-gray-900 border-0 rounded-xl placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:outline-none shadow-lg"
+                />
+              </div>
+              <div className="flex items-center gap-6">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showLowStock}
+                    onChange={(e) => setShowLowStock(e.target.checked)}
+                    className="sr-only"
+                  />
+                  <div className={`relative w-12 h-6 rounded-full transition-colors ${showLowStock ? 'bg-yellow-500' : 'bg-white/20'}`}>
+                    <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-md ${showLowStock ? 'translate-x-6' : ''}`}></div>
+                  </div>
+                  <div className="ml-3 flex items-center">
+                    <AlertTriangle className="w-4 h-4 text-yellow-400 mr-1" />
+                    <span className="text-white/90 font-semibold">Solo stock bajo</span>
+                  </div>
+                </label>
+                <button 
+                  onClick={() => {
+                    setSelectedProduct(null)
+                    setShowProductModal(true)
+                  }}
+                  className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-purple-600 hover:to-indigo-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-transparent transform hover:scale-105 transition-all duration-200 shadow-lg"
+                >
+                  <Plus className="w-5 h-5" />
+                  <span>Agregar Producto</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Products Table */}
+        <div className="backdrop-blur-lg bg-white/10 rounded-2xl border border-white/20 shadow-xl overflow-hidden mb-8">
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead>
+                <tr className="bg-white/20 border-b border-white/30">
+                  <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider">
+                    Producto
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider">
+                    Código
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider">
+                    Precio
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider">
+                    Stock
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider">
+                    Estado
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider">
+                    Categoría
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider">
+                    ITBIS
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/20">
+                {loading ? (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center text-white">
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                        <span className="ml-3 font-medium">Cargando productos...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : products.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center text-white">
+                      <Package className="w-12 h-12 text-white/60 mx-auto mb-3" />
+                      <p className="text-lg font-semibold">No se encontraron productos</p>
+                      <p className="text-sm text-white/70 mt-1">Intenta ajustar los filtros de búsqueda</p>
+                    </td>
+                  </tr>
+                ) : (
+                  products.map((product) => (
+                    <tr key={product.id} className="hover:bg-white/10 transition-colors">
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="text-sm font-bold text-white">
+                            {product.name}
+                          </div>
+                          {product.description && (
+                            <div className="text-sm text-white/70 mt-1 font-medium">
+                              {product.description}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <code className="bg-white/20 text-white px-2 py-1 rounded text-sm font-mono font-semibold">
+                          {product.code}
+                        </code>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="font-bold text-white">{formatCurrency(product.price)}</div>
+                          {product.cost > 0 && (
+                            <div className="text-xs text-white/70 font-medium">
+                              Costo: {formatCurrency(product.cost)}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="font-bold text-white">{product.stock}</div>
+                          <div className="text-xs text-white/70 font-medium">
+                            Min: {product.minStock}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div>
+                          <span className={`${getStockStatus(product)} font-bold`}>
+                            {getStockText(product)}
+                          </span>
+                          <div className="text-xs text-white/70 font-medium">
+                            {product.isActive ? 'Activo' : 'Inactivo'}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="bg-blue-500/20 text-blue-300 border border-blue-400/30 px-3 py-1 rounded-lg text-sm font-semibold">
+                          {product.category?.name || 'Sin categoría'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                          product.taxable 
+                            ? 'bg-green-500/20 text-green-300 border border-green-400/30' 
+                            : 'bg-gray-500/20 text-gray-300 border border-gray-400/30'
+                        }`}>
+                          {product.taxable ? 'Sí' : 'No'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => handleEditProduct(product)}
+                            className="flex items-center gap-1 text-blue-300 hover:text-blue-200 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 px-3 py-1 rounded-lg transition-colors"
+                          >
+                            <Edit className="w-4 h-4" />
+                            <span>Editar</span>
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteProduct(product)}
+                            className="flex items-center gap-1 text-red-300 hover:text-red-200 bg-red-500/20 hover:bg-red-500/30 border border-red-400/30 px-3 py-1 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span>Eliminar</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Summary Stats */}
+        {!loading && products.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="backdrop-blur-lg bg-white/10 rounded-2xl border border-white/20 p-6 shadow-xl">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
+                    <Package className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+                <div className="ml-4">
+                  <div className="text-sm text-white/90 font-semibold">Total Productos</div>
+                  <div className="text-2xl font-bold text-white">{products.length}</div>
+                </div>
+              </div>
+            </div>
+            <div className="backdrop-blur-lg bg-white/10 rounded-2xl border border-white/20 p-6 shadow-xl">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl flex items-center justify-center">
+                    <AlertTriangle className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+                <div className="ml-4">
+                  <div className="text-sm text-white/90 font-semibold">Stock Bajo</div>
+                  <div className="text-2xl font-bold text-yellow-400">
+                    {products.filter(p => p.stock <= p.minStock && p.stock > 0).length}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="backdrop-blur-lg bg-white/10 rounded-2xl border border-white/20 p-6 shadow-xl">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center">
+                    <AlertTriangle className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+                <div className="ml-4">
+                  <div className="text-sm text-white/90 font-semibold">Sin Stock</div>
+                  <div className="text-2xl font-bold text-red-400">
+                    {products.filter(p => p.stock <= 0).length}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="backdrop-blur-lg bg-white/10 rounded-2xl border border-white/20 p-6 shadow-xl">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center">
+                    <DollarSign className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+                <div className="ml-4">
+                  <div className="text-sm text-white/90 font-semibold">Valor Total</div>
+                  <div className="text-2xl font-bold text-green-400">
+                    {formatCurrency(products.reduce((sum, p) => sum + (p.price * p.stock), 0))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Modals */}
+      <ProductModal
+        isOpen={showProductModal}
+        onClose={() => {
+          setShowProductModal(false)
+          setSelectedProduct(null)
+        }}
+        product={selectedProduct}
+        onSave={handleProductSaved}
+      />
+
+      <DeleteProductModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false)
+          setDeleteProduct(null)
+        }}
+        product={deleteProduct ? {
+          id: deleteProduct.id || '',
+          code: deleteProduct.code,
+          name: deleteProduct.name,
+          price: deleteProduct.price,
+          stock: deleteProduct.stock
+        } : null}
+        onDelete={handleDeleteConfirmed}
+      />
+    </div>
+  )
+}

@@ -17,13 +17,7 @@ interface NCFSequence {
   isExpired?: boolean
 }
 
-interface BusinessSettings {
-  // Standard Dominican Republic NCF types
-  id: string
-  name: string
-  rnc: string
-  // ... other business fields
-}
+// Standard Dominican Republic NCF types
 
 // Standard Dominican Republic NCF Types as per DGII regulations
 const STANDARD_NCF_TYPES = [
@@ -256,17 +250,21 @@ export default function NCFSequencesPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Gestión de Secuencias NCF</h1>
-        <button
-          onClick={() => setCreatingSequence(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Nueva Secuencia
-        </button>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Gestión de Secuencias NCF</h1>
+            <p className="text-sm text-gray-600">Administrar secuencias de Números de Comprobante Fiscal</p>
+          </div>
+          <button
+            onClick={() => setCreatingSequence(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Nueva Secuencia
+          </button>
+        </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -520,6 +518,7 @@ export default function NCFSequencesPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

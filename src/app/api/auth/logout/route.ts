@@ -34,10 +34,22 @@ export async function POST(req: NextRequest) {
       console.error('Invalid token during logout:', jwtError)
     }
 
-    return NextResponse.json({
+    // Create response
+    const response = NextResponse.json({
       success: true,
-      message: 'Sesión cerrada exitosamente',
+      message: 'Logout exitoso',
     })
+
+    // Clear the token cookie
+    response.cookies.set('token', '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      expires: new Date(0),
+      path: '/'
+    })
+
+    return response
   } catch (error) {
     console.error('Logout error:', error)
     

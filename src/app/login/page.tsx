@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatDate } from '@/utils/dominican-validators'
 
@@ -11,7 +11,13 @@ export default function LoginPage() {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [currentDate, setCurrentDate] = useState('')
   const router = useRouter()
+
+  // Set date on client side to avoid hydration mismatch
+  useEffect(() => {
+    setCurrentDate(formatDate(new Date()))
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,12 +36,11 @@ export default function LoginPage() {
       const data = await response.json()
 
       if (data.success) {
-        // Store token in localStorage
+        // Store the token in localStorage
         localStorage.setItem('token', data.data.token)
-        localStorage.setItem('user', JSON.stringify(data.data.user))
         
-        // Redirect to dashboard
-        router.push('/')
+        // Force a full page reload to refresh the context
+        window.location.href = '/'
       } else {
         setError(data.error || 'Error al iniciar sesión')
       }
@@ -64,9 +69,11 @@ export default function LoginPage() {
           <p className="mt-2 text-sm text-gray-600">
             República Dominicana - DGII Compliant
           </p>
-          <p className="mt-1 text-xs text-gray-500">
-            Fecha: {formatDate(new Date())}
-          </p>
+          {currentDate && (
+            <p className="mt-1 text-xs text-gray-500">
+              Fecha: {currentDate}
+            </p>
+          )}
         </div>
       </div>
 

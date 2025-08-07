@@ -1,0 +1,1041 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { Dialog, Transition } from '@headlessui/react'
+import { Fragment } from 'react'
+import Navigation from '@/components/ui/Navigation'
+import { validateRNC, validateCedula } from '@/utils/dominican-validators'
+
+interface Customer {
+  id: number
+  name: string
+  email: string | null
+  phone: string | null
+  address: string | null
+  documentType: 'RNC' | 'CEDULA'
+  documentNumber: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+  _count: {
+    sales: number
+  }
+  sales?: Array<{
+    id: string
+    total: number
+    ncf: string
+    createdAt: string
+  }>
+}
+
+interface CustomerFormData {
+  name: string
+  email: string
+  phone: string
+  address: string
+  documentType: 'RNC' | 'CEDULA'
+  documentNumber: string
+  isActive: boolean
+}
+
+export default function CustomersPage() {
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [showModal, setShowModal] = useState(false)
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
+  const [formData, setFormData] = useState<CustomerFormData>({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    documentType: 'CEDULA',
+    documentNumber: '',
+    isActive: true,
+  })
+  const [searchTerm, setSearchTerm] = useState('')
+  const [documentTypeFilter, setDocumentTypeFilter] = useState<string>('')
+  const [statusFilter, setStatusFilter] = useState<string>('')
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards')
+  const [selectedCustomers, setSelectedCustomers] = useState<number[]>([])
+  const [showCustomerDetails, setShowCustomerDetails] = useState<Customer | null>(null)
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    pages: 0,
+  })
+
+  useEffect(() => {
+    fetchCustomers()
+  }, [searchTerm, documentTypeFilter, statusFilter, pagination.page])
+
+  const fetchCustomers = async () => {
+    try {
+      setLoading(true)
+      const params = new URLSearchParams()
+      
+      if (searchTerm) params.append('search', searchTerm)
+      if (documentTypeFilter) params.append('documentType', documentTypeFilter)
+      if (statusFilter) params.append('status', statusFilter)
+      params.append('page', pagination.page.toString())
+      params.append('limit', pagination.limit.toString())
+      
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/customers?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      const data = await response.json()
+
+      if (data.success) {
+        setCustomers(data.data.customers)
+        setPagination(data.data.pagination)
+      } else {
+        setError(data.error || 'Error al cargar clientes')
+      }
+    } catch (err) {
+      setError('Error de conexión')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const validateForm = () => {
+    if (!formData.name.trim()) {
+      setError('El nombre es requerido')
+      return false
+    }
+
+    if (!formData.documentNumber.trim()) {
+      setError('El número de documento es requerido')
+      return false
+    }
+
+    if (formData.documentType === 'RNC') {
+      if (!validateRNC(formData.documentNumber)) {
+        setError('RNC inválido')
+        return false
+      }
+    } else if (formData.documentType === 'CEDULA') {
+      if (!validateCedula(formData.documentNumber)) {
+        setError('Cédula inválida')
+        return false
+      }
+    }
+
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      setError('Email inválido')
+      return false
+    }
+
+    return true
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!validateForm()) return
+
+    try {
+      const url = editingCustomer 
+        ? `/api/customers/${editingCustomer.id}` 
+        : '/api/customers'
+      
+      const method = editingCustomer ? 'PUT' : 'POST'
+      
+      const token = localStorage.getItem('token')
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ...formData,
+          email: formData.email || null,
+          phone: formData.phone || null,
+          address: formData.address || null,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        await fetchCustomers()
+        setShowModal(false)
+        resetForm()
+      } else {
+        setError(data.error || 'Error al guardar cliente')
+      }
+    } catch (err) {
+      setError('Error de conexión')
+    }
+  }
+
+  const handleEdit = (customer: Customer) => {
+    setEditingCustomer(customer)
+    setFormData({
+      name: customer.name,
+      email: customer.email || '',
+      phone: customer.phone || '',
+      address: customer.address || '',
+      documentType: customer.documentType,
+      documentNumber: customer.documentNumber,
+      isActive: customer.isActive,
+    })
+    setShowModal(true)
+  }
+
+  const handleDelete = async (customer: Customer) => {
+    if (!confirm(`¿Está seguro de eliminar el cliente "${customer.name}"?`)) {
+      return
+    }
+
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/customers/${customer.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        await fetchCustomers()
+      } else {
+        setError(data.error || 'Error al eliminar cliente')
+      }
+    } catch (err) {
+      setError('Error de conexión')
+    }
+  }
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      address: '',
+      documentType: 'CEDULA',
+      documentNumber: '',
+      isActive: true,
+    })
+    setEditingCustomer(null)
+    setError(null)
+  }
+
+  const toggleCustomerSelection = (customerId: number) => {
+    setSelectedCustomers(prev => 
+      prev.includes(customerId)
+        ? prev.filter(id => id !== customerId)
+        : [...prev, customerId]
+    )
+  }
+
+  const toggleAllCustomers = () => {
+    setSelectedCustomers(prev => 
+      prev.length === customers.length ? [] : customers.map(c => c.id)
+    )
+  }
+
+  const handleBulkStatusChange = async (isActive: boolean) => {
+    if (selectedCustomers.length === 0) return
+    
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch('/api/customers/bulk', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          customerIds: selectedCustomers,
+          isActive
+        }),
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        await fetchCustomers()
+        setSelectedCustomers([])
+      } else {
+        setError(data.error || 'Error en operación masiva')
+      }
+    } catch (err) {
+      setError('Error de conexión')
+    }
+  }
+
+  const getCustomerInitials = (name: string) => {
+    return name.split(' ')
+      .map(word => word[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
+  }
+
+  const getCustomerStatus = (customer: Customer) => {
+    if (!customer.isActive) return { label: 'Inactivo', color: 'bg-red-500' }
+    if (customer._count.sales >= 10) return { label: 'VIP', color: 'bg-purple-500' }
+    if (customer._count.sales >= 5) return { label: 'Frecuente', color: 'bg-blue-500' }
+    return { label: 'Nuevo', color: 'bg-green-500' }
+  }
+
+  const filteredCustomers = customers.filter(customer => {
+    if (statusFilter === 'vip' && customer._count.sales < 10) return false
+    if (statusFilter === 'frequent' && (customer._count.sales < 5 || customer._count.sales >= 10)) return false
+    if (statusFilter === 'new' && customer._count.sales >= 5) return false
+    if (statusFilter === 'inactive' && customer.isActive) return false
+    return true
+  })
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -inset-10 opacity-50">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse"></div>
+          <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse delay-1000"></div>
+          <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-indigo-500 rounded-full mix-blend-multiply filter blur-xl animate-pulse delay-2000"></div>
+        </div>
+      </div>
+
+      <Navigation currentPage="customers" />
+
+      <div className="relative z-10 px-6 py-6">
+        {/* Header */}
+        <div className="mb-6">
+          <div className="backdrop-blur-lg bg-white/10 rounded-2xl border border-white/20 p-6 shadow-xl">
+            <h1 className="text-3xl font-bold text-white mb-2">Gestión de Clientes</h1>
+            <p className="text-white/80">Administrar clientes del sistema</p>
+          </div>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 backdrop-blur-lg bg-red-500/20 border border-red-400/30 rounded-2xl p-4 shadow-xl">
+            <div className="flex">
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-200">Error</h3>
+                <div className="mt-2 text-sm text-red-300">{error}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Controls */}
+        <div className="mb-6 backdrop-blur-lg bg-white/10 rounded-2xl border border-white/20 p-6 shadow-xl">
+          <div className="flex flex-col lg:flex-row gap-4 mb-4">
+            <div className="flex-1 relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                placeholder="Buscar clientes por nombre, email, teléfono o documento..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-3 py-3 bg-white/20 text-white border-0 rounded-xl placeholder-white/60 focus:ring-2 focus:ring-purple-500 focus:outline-none shadow-lg backdrop-blur-sm"
+              />
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <div className="relative">
+                <select
+                  value={documentTypeFilter}
+                  onChange={(e) => setDocumentTypeFilter(e.target.value)}
+                  className="pl-3 pr-8 py-3 bg-white/20 text-white border-0 rounded-xl focus:ring-2 focus:ring-purple-500 focus:outline-none appearance-none shadow-lg backdrop-blur-sm"
+                >
+                  <option value="" className="text-gray-900">Todos los documentos</option>
+                  <option value="CEDULA" className="text-gray-900">Cédula</option>
+                  <option value="RNC" className="text-gray-900">RNC</option>
+                </select>
+              </div>
+              
+              <div className="relative">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="pl-3 pr-8 py-3 bg-white/20 text-white border-0 rounded-xl focus:ring-2 focus:ring-purple-500 focus:outline-none appearance-none shadow-lg backdrop-blur-sm"
+                >
+                  <option value="" className="text-gray-900">Todos los estados</option>
+                  <option value="vip" className="text-gray-900">VIP (10+ ventas)</option>
+                  <option value="frequent" className="text-gray-900">Frecuente (5-9 ventas)</option>
+                  <option value="new" className="text-gray-900">Nuevo (0-4 ventas)</option>
+                  <option value="inactive" className="text-gray-900">Inactivo</option>
+                </select>
+              </div>
+
+              <div className="flex bg-white/20 rounded-xl p-1">
+                <button
+                  onClick={() => setViewMode('cards')}
+                  className={`p-2 rounded-lg transition-all ${
+                    viewMode === 'cards' 
+                      ? 'bg-white/30 text-white' 
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`p-2 rounded-lg transition-all ${
+                    viewMode === 'table' 
+                      ? 'bg-white/30 text-white' 
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  </svg>
+                </button>
+              </div>
+              
+              <button
+                onClick={() => {
+                  resetForm()
+                  setShowModal(true)
+                }}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-purple-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center space-x-2 shadow-lg transition-all"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Nuevo Cliente</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Bulk Actions */}
+          {selectedCustomers.length > 0 && (
+            <div className="flex items-center justify-between bg-white/10 rounded-xl p-4 border border-white/20">
+              <span className="text-white">
+                {selectedCustomers.length} cliente{selectedCustomers.length !== 1 ? 's' : ''} seleccionado{selectedCustomers.length !== 1 ? 's' : ''}
+              </span>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleBulkStatusChange(true)}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                >
+                  Activar
+                </button>
+                <button
+                  onClick={() => handleBulkStatusChange(false)}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+                >
+                  Desactivar
+                </button>
+                <button
+                  onClick={() => setSelectedCustomers([])}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Customers Display */}
+        {viewMode === 'cards' ? (
+          /* Cards View */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {loading ? (
+              Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="backdrop-blur-lg bg-white/10 rounded-2xl border border-white/20 p-6 shadow-xl animate-pulse">
+                  <div className="flex items-center space-x-4 mb-4">
+                    <div className="w-12 h-12 bg-white/20 rounded-full"></div>
+                    <div className="flex-1">
+                      <div className="h-4 bg-white/20 rounded mb-2"></div>
+                      <div className="h-3 bg-white/20 rounded w-2/3"></div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-3 bg-white/20 rounded"></div>
+                    <div className="h-3 bg-white/20 rounded w-3/4"></div>
+                  </div>
+                </div>
+              ))
+            ) : filteredCustomers.length === 0 ? (
+              <div className="col-span-full backdrop-blur-lg bg-white/10 rounded-2xl border border-white/20 p-12 shadow-xl text-center">
+                <svg className="w-16 h-16 text-white/40 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <p className="text-white/60 text-lg">No se encontraron clientes</p>
+                <p className="text-white/40 text-sm mt-2">Intenta ajustar los filtros de búsqueda</p>
+              </div>
+            ) : (
+              filteredCustomers.map((customer) => {
+                const status = getCustomerStatus(customer)
+                const isSelected = selectedCustomers.includes(customer.id)
+                
+                return (
+                  <div 
+                    key={customer.id} 
+                    className={`backdrop-blur-lg bg-white/10 rounded-2xl border border-white/20 p-6 shadow-xl hover:bg-white/15 transition-all cursor-pointer group ${
+                      isSelected ? 'ring-2 ring-purple-500 bg-white/20' : ''
+                    }`}
+                    onClick={() => toggleCustomerSelection(customer.id)}
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-12 h-12 rounded-full ${status.color} flex items-center justify-center text-white font-bold text-sm`}>
+                          {getCustomerInitials(customer.name)}
+                        </div>
+                        <div>
+                          <h3 className="text-white font-semibold text-lg leading-tight">{customer.name}</h3>
+                          <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${status.color} text-white mt-1`}>
+                            {status.label}
+                          </span>
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleCustomerSelection(customer.id)}
+                        className="rounded border-white/30 text-purple-600 focus:ring-purple-500 focus:ring-offset-0"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+
+                    <div className="space-y-3 text-sm">
+                      <div className="flex items-center space-x-2 text-white/80">
+                        <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>{customer.documentType}: {customer.documentNumber}</span>
+                      </div>
+                      
+                      {customer.email && (
+                        <div className="flex items-center space-x-2 text-white/80">
+                          <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                          </svg>
+                          <span className="truncate">{customer.email}</span>
+                        </div>
+                      )}
+                      
+                      {customer.phone && (
+                        <div className="flex items-center space-x-2 text-white/80">
+                          <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                          <span>{customer.phone}</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between pt-3 border-t border-white/20">
+                        <div className="flex items-center space-x-2 text-white/80">
+                          <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                          </svg>
+                          <span>{customer._count.sales} ventas</span>
+                        </div>
+                        
+                        <div className="flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setShowCustomerDetails(customer)
+                            }}
+                            className="p-1 text-white/60 hover:text-white hover:bg-white/20 rounded"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleEdit(customer)
+                            }}
+                            className="p-1 text-white/60 hover:text-white hover:bg-white/20 rounded"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        ) : (
+          /* Table View */
+          <div className="backdrop-blur-lg bg-white/10 rounded-2xl border border-white/20 shadow-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead className="bg-white/10 border-b border-white/20">
+                  <tr>
+                    <th className="px-6 py-4 text-left">
+                      <input
+                        type="checkbox"
+                        checked={selectedCustomers.length === customers.length && customers.length > 0}
+                        onChange={toggleAllCustomers}
+                        className="rounded border-white/30 text-purple-600 focus:ring-purple-500 focus:ring-offset-0"
+                      />
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">
+                      Cliente
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">
+                      Documento
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">
+                      Contacto
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">
+                      Ventas
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">
+                      Estado
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-white uppercase tracking-wider">
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {loading ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i} className="animate-pulse">
+                        <td className="px-6 py-4"><div className="w-4 h-4 bg-white/20 rounded"></div></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-white/20 rounded w-32"></div></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-white/20 rounded w-24"></div></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-white/20 rounded w-40"></div></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-white/20 rounded w-16"></div></td>
+                        <td className="px-6 py-4"><div className="h-6 bg-white/20 rounded-full w-20"></div></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-white/20 rounded w-24"></div></td>
+                      </tr>
+                    ))
+                  ) : filteredCustomers.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-12 text-center text-white/60">
+                        <svg className="w-12 h-12 text-white/40 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        No se encontraron clientes
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredCustomers.map((customer) => {
+                      const status = getCustomerStatus(customer)
+                      const isSelected = selectedCustomers.includes(customer.id)
+                      
+                      return (
+                        <tr key={customer.id} className={`hover:bg-white/5 transition-colors ${isSelected ? 'bg-white/10' : ''}`}>
+                          <td className="px-6 py-4">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleCustomerSelection(customer.id)}
+                              className="rounded border-white/30 text-purple-600 focus:ring-purple-500 focus:ring-offset-0"
+                            />
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center space-x-3">
+                              <div className={`w-10 h-10 rounded-full ${status.color} flex items-center justify-center text-white font-bold text-sm`}>
+                                {getCustomerInitials(customer.name)}
+                              </div>
+                              <div>
+                                <div className="text-sm font-medium text-white">
+                                  {customer.name}
+                                </div>
+                                {customer.address && (
+                                  <div className="text-sm text-white/60 truncate max-w-xs">
+                                    {customer.address}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-white">
+                              {customer.documentType}: {customer.documentNumber}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm">
+                              {customer.email && (
+                                <div className="text-white/80 truncate max-w-xs">{customer.email}</div>
+                              )}
+                              {customer.phone && (
+                                <div className="text-white/60">{customer.phone}</div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-white">
+                              {customer._count.sales} ventas
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${status.color} text-white`}>
+                              {status.label}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center space-x-3">
+                              <button
+                                onClick={() => setShowCustomerDetails(customer)}
+                                className="text-white/60 hover:text-white flex items-center space-x-1 hover:bg-white/10 p-2 rounded-lg transition-all"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => handleEdit(customer)}
+                                className="text-blue-400 hover:text-blue-300 flex items-center space-x-1 hover:bg-white/10 p-2 rounded-lg transition-all"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                              {customer._count.sales === 0 && (
+                                <button
+                                  onClick={() => handleDelete(customer)}
+                                  className="text-red-400 hover:text-red-300 flex items-center space-x-1 hover:bg-white/10 p-2 rounded-lg transition-all"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {pagination.pages > 1 && (
+              <div className="bg-white/5 px-6 py-4 flex items-center justify-between border-t border-white/10">
+                <div className="text-sm text-white/70">
+                  Mostrando {((pagination.page - 1) * pagination.limit) + 1} a{' '}
+                  {Math.min(pagination.page * pagination.limit, pagination.total)} de{' '}
+                  {pagination.total} resultados
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                    disabled={pagination.page === 1}
+                    className="px-4 py-2 text-sm bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-all"
+                  >
+                    Anterior
+                  </button>
+                  <button
+                    onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                    disabled={pagination.page === pagination.pages}
+                    className="px-4 py-2 text-sm bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-all"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Modal */}
+      <Transition appear show={showModal} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={() => setShowModal(false)}>
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+          </Transition.Child>
+
+          <div className="fixed inset-0 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 text-center">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl backdrop-blur-lg bg-white/10 border border-white/20 p-6 text-left align-middle shadow-xl transition-all">
+                  <Dialog.Title as="h3" className="text-xl font-semibold leading-6 text-white mb-6">
+                    {editingCustomer ? 'Editar Cliente' : 'Nuevo Cliente'}
+                  </Dialog.Title>
+
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-white/80 mb-2">
+                        Nombre *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent backdrop-blur-sm"
+                        placeholder="Nombre completo"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-white/80 mb-2">
+                          Tipo de Documento *
+                        </label>
+                        <select
+                          value={formData.documentType}
+                          onChange={(e) => setFormData({ ...formData, documentType: e.target.value as 'RNC' | 'CEDULA' })}
+                          className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent backdrop-blur-sm"
+                        >
+                          <option value="CEDULA" className="text-gray-900">Cédula</option>
+                          <option value="RNC" className="text-gray-900">RNC</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-white/80 mb-2">
+                          Número *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.documentNumber}
+                          onChange={(e) => setFormData({ ...formData, documentNumber: e.target.value })}
+                          className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent backdrop-blur-sm"
+                          placeholder={formData.documentType === 'RNC' ? '123456789' : '12345678901'}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-white/80 mb-2">
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent backdrop-blur-sm"
+                        placeholder="cliente@email.com"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-white/80 mb-2">
+                        Teléfono
+                      </label>
+                      <input
+                        type="tel"
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent backdrop-blur-sm"
+                        placeholder="(809) 123-4567"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-white/80 mb-2">
+                        Dirección
+                      </label>
+                      <textarea
+                        value={formData.address}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        rows={3}
+                        className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:ring-2 focus:ring-purple-500 focus:border-transparent backdrop-blur-sm resize-none"
+                        placeholder="Dirección completa"
+                      />
+                    </div>
+
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="checkbox"
+                        id="isActive"
+                        checked={formData.isActive}
+                        onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                        className="rounded border-white/30 text-purple-600 focus:ring-purple-500 bg-white/20"
+                      />
+                      <label htmlFor="isActive" className="text-sm text-white/80">
+                        Cliente activo
+                      </label>
+                    </div>
+
+                    <div className="flex space-x-3 pt-6">
+                      <button
+                        type="button"
+                        onClick={() => setShowModal(false)}
+                        className="flex-1 bg-white/20 text-white px-6 py-3 rounded-xl hover:bg-white/30 focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-transparent transition-all border border-white/30"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-transparent transition-all shadow-lg"
+                      >
+                        {editingCustomer ? 'Actualizar' : 'Crear'}
+                      </button>
+                    </div>
+                  </form>
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
+
+      {/* Customer Details Modal */}
+      <Transition appear show={!!showCustomerDetails} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={() => setShowCustomerDetails(null)}>
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+          </Transition.Child>
+
+          <div className="fixed inset-0 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 text-center">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl backdrop-blur-lg bg-white/10 border border-white/20 p-6 text-left align-middle shadow-xl transition-all">
+                  {showCustomerDetails && (
+                    <>
+                      <Dialog.Title as="h3" className="text-xl font-semibold leading-6 text-white mb-6 flex items-center space-x-3">
+                        <div className={`w-12 h-12 rounded-full ${getCustomerStatus(showCustomerDetails).color} flex items-center justify-center text-white font-bold`}>
+                          {getCustomerInitials(showCustomerDetails.name)}
+                        </div>
+                        <div>
+                          <div>{showCustomerDetails.name}</div>
+                          <div className="text-sm text-white/60">{showCustomerDetails.documentType}: {showCustomerDetails.documentNumber}</div>
+                        </div>
+                      </Dialog.Title>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Contact Information */}
+                        <div className="space-y-4">
+                          <h4 className="text-lg font-medium text-white border-b border-white/20 pb-2">Información de Contacto</h4>
+                          
+                          {showCustomerDetails.email && (
+                            <div className="flex items-center space-x-3">
+                              <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                              </svg>
+                              <span className="text-white/80">{showCustomerDetails.email}</span>
+                            </div>
+                          )}
+                          
+                          {showCustomerDetails.phone && (
+                            <div className="flex items-center space-x-3">
+                              <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                              </svg>
+                              <span className="text-white/80">{showCustomerDetails.phone}</span>
+                            </div>
+                          )}
+                          
+                          {showCustomerDetails.address && (
+                            <div className="flex items-start space-x-3">
+                              <svg className="w-5 h-5 text-white/60 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                              <span className="text-white/80">{showCustomerDetails.address}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Customer Statistics */}
+                        <div className="space-y-4">
+                          <h4 className="text-lg font-medium text-white border-b border-white/20 pb-2">Estadísticas</h4>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-white/10 rounded-xl p-4 border border-white/20">
+                              <div className="text-2xl font-bold text-white">{showCustomerDetails._count.sales}</div>
+                              <div className="text-sm text-white/60">Total de Ventas</div>
+                            </div>
+                            
+                            <div className="bg-white/10 rounded-xl p-4 border border-white/20">
+                              <div className="text-2xl font-bold text-white">
+                                {getCustomerStatus(showCustomerDetails).label}
+                              </div>
+                              <div className="text-sm text-white/60">Estado del Cliente</div>
+                            </div>
+                          </div>
+
+                          <div className="bg-white/10 rounded-xl p-4 border border-white/20">
+                            <div className="text-sm text-white/60 mb-2">Cliente desde</div>
+                            <div className="text-white">
+                              {new Date(showCustomerDetails.createdAt).toLocaleDateString('es-DO', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end space-x-3 pt-6 border-t border-white/20 mt-6">
+                        <button
+                          onClick={() => setShowCustomerDetails(null)}
+                          className="px-6 py-3 bg-white/20 text-white rounded-xl hover:bg-white/30 focus:ring-2 focus:ring-white/50 transition-all border border-white/30"
+                        >
+                          Cerrar
+                        </button>
+                        <button
+                          onClick={() => {
+                            handleEdit(showCustomerDetails)
+                            setShowCustomerDetails(null)
+                          }}
+                          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 focus:ring-2 focus:ring-purple-500 transition-all shadow-lg"
+                        >
+                          Editar Cliente
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
+    </div>
+  )
+}

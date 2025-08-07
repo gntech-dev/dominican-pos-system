@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import { Fragment } from 'react'
-import Navigation from '@/components/ui/Navigation'
 import { formatDate } from '@/utils/dominican-validators'
 
 interface User {
@@ -252,8 +251,6 @@ export default function UsersPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navigation currentPage="users" />
-
       <div className="px-6 py-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Gestión de Usuarios</h1>
@@ -460,7 +457,7 @@ export default function UsersPage() {
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
           >
-            <div className="fixed inset-0 bg-black bg-opacity-25" />
+            <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-md" />
           </Transition.Child>
 
           <div className="fixed inset-0 overflow-y-auto">
@@ -474,7 +471,7 @@ export default function UsersPage() {
                 leaveFrom="opacity-100 scale-100"
                 leaveTo="opacity-0 scale-95"
               >
-                <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+                <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-xl bg-white p-6 text-left align-middle shadow-2xl border border-gray-200 transition-all">
                   <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900 mb-4">
                     {editingUser ? 'Editar Usuario' : 'Nuevo Usuario'}
                   </Dialog.Title>

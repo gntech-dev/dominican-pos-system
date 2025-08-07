@@ -132,7 +132,15 @@ export default function ThermalReceipt({ receiptData, onPrint }: ThermalReceiptP
             <div className="font-semibold">CLIENTE:</div>
             <div className="text-xs">{customer.name}</div>
             {customer.rnc && (
-              <div className="text-xs">RNC: {formatRNC(customer.rnc)}</div>
+              <>
+                <div className="text-xs">RNC: {formatRNC(customer.rnc)}</div>
+                {/* B01 specific information for thermal receipt */}
+                {sale.ncfType === 'B01' && (
+                  <div className="text-xs bg-gray-100 p-1 mt-1">
+                    ✓ VALIDO CREDITO FISCAL
+                  </div>
+                )}
+              </>
             )}
             {customer.cedula && (
               <div className="text-xs">CEDULA: {customer.cedula}</div>
@@ -173,6 +181,19 @@ export default function ThermalReceipt({ receiptData, onPrint }: ThermalReceiptP
             <span>ITBIS (18%):</span>
             <span>{formatCurrency(itbis)}</span>
           </div>
+          {/* Enhanced tax breakdown for B01 */}
+          {sale.ncfType === 'B01' && customer?.rnc && (
+            <>
+              <div className="flex justify-between text-xs">
+                <span>BASE GRAVADA:</span>
+                <span>{formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span>BASE EXENTA:</span>
+                <span>{formatCurrency(0)}</span>
+              </div>
+            </>
+          )}
           <div className="flex justify-between border-t border-gray-400 pt-1 font-bold text-sm">
             <span>TOTAL:</span>
             <span>{formatCurrency(total)}</span>
@@ -212,7 +233,24 @@ export default function ThermalReceipt({ receiptData, onPrint }: ThermalReceiptP
         {sale.ncf && (
           <div className="text-center mt-2 pt-2 border-t border-gray-400">
             <div className="text-xs font-semibold">COMPROBANTE FISCAL</div>
-            <div className="text-xs">Válido como comprobante para deducciones y crédito fiscal</div>
+            <div className="text-xs">NCF: {sale.ncf}</div>
+            <div className="text-xs">RNC EMISOR: {formatRNC(business.rnc)}</div>
+            {/* Enhanced B01 compliance notice */}
+            {sale.ncfType === 'B01' && customer?.rnc && (
+              <>
+                <div className="text-xs">RNC CLIENTE: {formatRNC(customer.rnc)}</div>
+                <div className="text-xs bg-gray-100 p-1 mt-1">
+                  ✓ CREDITO FISCAL VALIDO
+                </div>
+                <div className="text-xs">CONSERVAR 5 AÑOS</div>
+              </>
+            )}
+            {sale.ncfType === 'B02' && (
+              <div className="text-xs">
+                NO VALIDO CREDITO FISCAL
+              </div>
+            )}
+            <div className="text-xs">LEY 11-92 DGII</div>
           </div>
         )}
       </div>

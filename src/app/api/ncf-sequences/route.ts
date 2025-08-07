@@ -12,14 +12,6 @@ const CreateNCFSequenceSchema = z.object({
   isActive: z.boolean().default(true)
 })
 
-const UpdateNCFSequenceSchema = z.object({
-  type: z.enum(['B01', 'B02', 'B03', 'B04', 'B11', 'B12', 'B13', 'B14', 'B15']).optional(),
-  currentNumber: z.number().min(0).max(99999999).optional(),
-  maxNumber: z.number().min(1).max(99999999).optional(),
-  expiryDate: z.string().datetime().optional().nullable(),
-  isActive: z.boolean().optional()
-})
-
 /**
  * GET /api/ncf-sequences - Get all NCF sequences
  */
@@ -33,10 +25,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Only admins can view NCF sequences
-    if (user.role !== 'ADMIN') {
+    // Allow ADMIN, MANAGER, and CASHIER to view NCF sequences for sales
+    if (!['ADMIN', 'MANAGER', 'CASHIER'].includes(user.role)) {
       return NextResponse.json(
-        { error: 'Acceso denegado - Solo administradores' },
+        { error: 'Acceso denegado' },
         { status: 403 }
       )
     }

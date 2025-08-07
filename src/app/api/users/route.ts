@@ -9,7 +9,7 @@ const createUserSchema = z.object({
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
   firstName: z.string().min(1, 'Nombre requerido'),
   lastName: z.string().min(1, 'Apellido requerido'),
-  role: z.enum(['ADMIN', 'MANAGER', 'CASHIER'], {
+  role: z.enum(['ADMIN', 'MANAGER', 'CASHIER', 'REPORTER'], {
     message: 'Rol inválido'
   }),
   isActive: z.boolean().default(true),

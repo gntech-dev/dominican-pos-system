@@ -11,7 +11,7 @@ const updateCategorySchema = z.object({
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const authResult = await requireAuth(['ADMIN', 'MANAGER', 'CASHIER'])(req)
@@ -67,7 +67,7 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const authResult = await requireAuth(['ADMIN', 'MANAGER'])(req)
@@ -75,8 +75,9 @@ export async function PUT(
       return NextResponse.json({ error: authResult.error }, { status: authResult.status })
     }
 
-    const categoryId = parseInt(params.id, 10)
-    if (isNaN(categoryId)) {
+    const { id } = await params
+    
+    if (!id) {
       return NextResponse.json(
         { error: 'ID de categoría inválido' },
         { status: 400 }
@@ -88,7 +89,7 @@ export async function PUT(
 
     // Get current category for audit log
     const currentCategory = await prisma.category.findUnique({
-      where: { id: categoryId },
+      where: { id },
     })
 
     if (!currentCategory) {
@@ -99,7 +100,7 @@ export async function PUT(
     }
 
     const updatedCategory = await prisma.category.update({
-      where: { id: categoryId },
+      where: { id },
       data: updateData,
     })
 
@@ -108,7 +109,7 @@ export async function PUT(
       data: {
         action: 'UPDATE',
         entityType: 'Category',
-        entityId: categoryId,
+        entityId: id,
         oldValue: {
           name: currentCategory.name,
           description: currentCategory.description,
@@ -148,7 +149,7 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const authResult = await requireAuth(['ADMIN'])(req)
@@ -156,8 +157,9 @@ export async function DELETE(
       return NextResponse.json({ error: authResult.error }, { status: authResult.status })
     }
 
-    const categoryId = parseInt(params.id, 10)
-    if (isNaN(categoryId)) {
+    const { id } = await params
+    
+    if (!id) {
       return NextResponse.json(
         { error: 'ID de categoría inválido' },
         { status: 400 }
@@ -166,7 +168,7 @@ export async function DELETE(
 
     // Check if category has products
     const productCount = await prisma.product.count({
-      where: { categoryId },
+      where: { categoryId: id },
     })
 
     if (productCount > 0) {
@@ -178,7 +180,7 @@ export async function DELETE(
 
     // Get current category for audit log
     const currentCategory = await prisma.category.findUnique({
-      where: { id: categoryId },
+      where: { id },
     })
 
     if (!currentCategory) {
@@ -189,7 +191,7 @@ export async function DELETE(
     }
 
     await prisma.category.delete({
-      where: { id: categoryId },
+      where: { id },
     })
 
     // Log the deletion
@@ -197,7 +199,7 @@ export async function DELETE(
       data: {
         action: 'DELETE',
         entityType: 'Category',
-        entityId: categoryId,
+        entityId: id,
         oldValue: {
           name: currentCategory.name,
           description: currentCategory.description,

@@ -6,6 +6,7 @@ import { z } from 'zod'
 const createCategorySchema = z.object({
   name: z.string().min(1, 'Nombre requerido'),
   description: z.string().optional(),
+  isActive: z.boolean().optional().default(true),
 })
 
 export async function POST(req: NextRequest) {

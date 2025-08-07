@@ -34,6 +34,7 @@ export default function ReceiptPrintDialog({
 
   // Reset fetched ref when dialog closes
   React.useEffect(() => {
+    console.log('ReceiptPrintDialog - isOpen changed to:', isOpen);
     if (!isOpen) {
       fetchedRef.current = null
       setCurrentReceiptData(receiptData || null)
@@ -208,7 +209,10 @@ export default function ReceiptPrintDialog({
 
           <div className="flex space-x-3 mt-6">
             <button
-              onClick={() => setShowPreview(true)}
+              onClick={() => {
+                console.log('Preview button clicked, currentReceiptData:', currentReceiptData);
+                setShowPreview(true);
+              }}
               disabled={!currentReceiptData || isLoadingData}
               className="flex-1 bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
@@ -249,8 +253,8 @@ export default function ReceiptPrintDialog({
       {/* Preview Modal */}
       {showPreview && currentReceiptData && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-60 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto text-black">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center text-black">
               <h3 className="text-lg font-semibold text-gray-900">Vista Previa del Recibo</h3>
               <button
                 onClick={() => setShowPreview(false)}
@@ -260,73 +264,106 @@ export default function ReceiptPrintDialog({
               </button>
             </div>
             
-            <div className="p-4">
+            <div className="p-4 text-black">
               {/* Receipt Preview Content */}
-              <div className="font-mono text-sm bg-gray-50 p-4 rounded border">
-                <div className="text-center mb-4">
-                  <div className="font-bold">{currentReceiptData.business?.name || 'EMPRESA'}</div>
-                  <div>RNC: {currentReceiptData.business?.rnc || 'N/A'}</div>
-                  <div>{currentReceiptData.business?.address || ''}</div>
-                  <div>Tel: {currentReceiptData.business?.phone || ''}</div>
-                </div>
-                
-                <div className="border-t border-gray-300 my-3"></div>
-                
-                <div className="mb-3">
-                  <div>Fecha: {new Date(currentReceiptData.sale.createdAt).toLocaleDateString('es-DO')}</div>
-                  <div>Hora: {new Date(currentReceiptData.sale.createdAt).toLocaleTimeString('es-DO')}</div>
-                  <div>Cajero: {currentReceiptData.sale.cashier?.firstName} {currentReceiptData.sale.cashier?.lastName}</div>
-                  <div>Venta #: {currentReceiptData.sale.saleNumber}</div>
-                  {currentReceiptData.sale.ncf && (
-                    <div>NCF: {currentReceiptData.sale.ncf}</div>
+              <div className="font-mono text-sm bg-white text-black p-6 rounded-lg shadow-lg border-2 border-gray-300">
+                {/* Header */}
+                <div className="text-center border-b-2 border-gray-800 pb-3 mb-4">
+                  <h2 className="text-xl font-bold text-black mb-2">RECIBO DE VENTA</h2>
+                  {currentReceiptData.business?.name && (
+                    <div className="text-lg font-bold text-black">{currentReceiptData.business.name}</div>
+                  )}
+                  {currentReceiptData.business?.rnc && (
+                    <div className="text-sm text-black">RNC: {currentReceiptData.business.rnc}</div>
+                  )}
+                  {currentReceiptData.business?.address && (
+                    <div className="text-sm text-black">{currentReceiptData.business.address}</div>
+                  )}
+                  {currentReceiptData.business?.phone && (
+                    <div className="text-sm text-black">Tel: {currentReceiptData.business.phone}</div>
                   )}
                 </div>
-                
+
+                {/* Transaction Info */}
+                <div className="mb-4 text-sm text-black">
+                  <div className="flex justify-between">
+                    <span>Fecha:</span>
+                    <span>{new Date(currentReceiptData.sale.createdAt).toLocaleDateString('es-DO')} {new Date(currentReceiptData.sale.createdAt).toLocaleTimeString('es-DO')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>NCF:</span>
+                    <span className="font-bold">{currentReceiptData.sale.ncf || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Recibo #:</span>
+                    <span>{currentReceiptData.sale.saleNumber}</span>
+                  </div>
+                  {currentReceiptData.sale.cashier && (
+                    <div className="flex justify-between">
+                      <span>Cajero:</span>
+                      <span>{currentReceiptData.sale.cashier.firstName} {currentReceiptData.sale.cashier.lastName}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Customer Info */}
                 {currentReceiptData.sale.customer && (
-                  <div className="mb-3">
-                    <div>Cliente: {currentReceiptData.sale.customer.name}</div>
+                  <div className="mb-4 text-sm text-black border-b border-gray-400 pb-2">
+                    <div className="font-bold">CLIENTE:</div>
+                    <div>{currentReceiptData.sale.customer.name}</div>
                     {currentReceiptData.sale.customer.rnc && (
                       <div>RNC: {currentReceiptData.sale.customer.rnc}</div>
                     )}
                   </div>
                 )}
-                
-                <div className="border-t border-gray-300 my-3"></div>
-                
-                <div className="space-y-1">
+
+                {/* Items */}
+                <div className="mb-4">
+                  <div className="border-b border-gray-400 pb-1 mb-2">
+                    <div className="flex justify-between text-sm font-bold text-black">
+                      <span>DESCRIPCIÓN</span>
+                      <span>TOTAL</span>
+                    </div>
+                  </div>
+                  
                   {currentReceiptData.sale.items?.map(item => (
-                    <div key={item.id} className="flex justify-between">
-                      <div className="flex-1">
-                        <div>{item.product?.name || 'Producto'}</div>
-                        <div className="text-xs">{item.quantity} x RD${item.unitPrice.toFixed(2)}</div>
+                    <div key={item.id} className="mb-3 text-sm text-black">
+                      <div className="flex justify-between">
+                        <span className="font-bold">{item.product?.name || 'Producto'}</span>
+                        <span className="font-bold">RD$ {item.total.toFixed(2)}</span>
                       </div>
-                      <div>RD${item.total.toFixed(2)}</div>
+                      <div className="flex justify-between text-xs text-gray-700">
+                        <span>{item.quantity} x RD$ {item.unitPrice.toFixed(2)}</span>
+                        <span>Cód: {item.product?.code || 'N/A'}</span>
+                      </div>
                     </div>
                   )) || []}
                 </div>
-                
-                <div className="border-t border-gray-300 my-3"></div>
-                
-                <div className="space-y-1">
-                  <div className="flex justify-between">
-                    <span>Subtotal:</span>
-                    <span>RD${currentReceiptData.sale.subtotal.toFixed(2)}</span>
+
+                {/* Totals */}
+                <div className="border-t-2 border-gray-800 pt-2 text-black">
+                  <div className="flex justify-between text-sm">
+                    <span>SUBTOTAL:</span>
+                    <span>RD$ {currentReceiptData.sale.subtotal.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between text-sm">
                     <span>ITBIS (18%):</span>
-                    <span>RD${currentReceiptData.sale.itbis.toFixed(2)}</span>
+                    <span>RD$ {currentReceiptData.sale.itbis.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between font-bold text-lg border-t pt-1">
+                  <div className="flex justify-between text-lg font-bold border-t border-gray-400 pt-1 mt-1">
                     <span>TOTAL:</span>
-                    <span>RD${currentReceiptData.sale.total.toFixed(2)}</span>
+                    <span>RD$ {currentReceiptData.sale.total.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm mt-2">
+                    <span>PAGO:</span>
+                    <span>{currentReceiptData.sale.paymentMethod}</span>
                   </div>
                 </div>
-                
-                <div className="border-t border-gray-300 my-3"></div>
-                
-                <div className="text-center">
-                  <div>Método de Pago: {currentReceiptData.sale.paymentMethod}</div>
-                  <div className="mt-2 text-xs">¡Gracias por su compra!</div>
+
+                {/* Footer */}
+                <div className="text-center text-sm text-black mt-4 pt-3 border-t border-gray-400">
+                  <div className="font-bold">¡Gracias por su compra!</div>
+                  <div className="text-xs mt-1">Sistema POS - DGII</div>
                 </div>
               </div>
               

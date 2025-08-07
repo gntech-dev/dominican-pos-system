@@ -1,8 +1,22 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Navigation from '@/components/ui/Navigation'
+import { RoleGate } from '@/contexts/RoleContext'
 import type { BusinessSettings, CreateBusinessSettingsForm } from '@/types'
+
+interface RncSyncStatus {
+  totalRecords: number;
+  lastSync: string | null;
+  isStale: boolean;
+}
+
+interface RncScheduleSettings {
+  enabled: boolean;
+  scheduleTime: string;
+  timezone: string;
+  lastScheduledRun: string | null;
+  autoSyncEnabled: boolean;
+}
 
 export default function SettingsPage() {
   const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null)
@@ -11,6 +25,12 @@ export default function SettingsPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [activeTab, setActiveTab] = useState('business')
+
+  // RNC-related state
+  const [syncStatus, setSyncStatus] = useState<RncSyncStatus | null>(null)
+  const [scheduleSettings, setScheduleSettings] = useState<RncScheduleSettings | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [savingSchedule, setSavingSchedule] = useState(false)
 
   // Form state
   const [formData, setFormData] = useState<CreateBusinessSettingsForm>({
@@ -113,10 +133,103 @@ export default function SettingsPage() {
     }
   }
 
+  // RNC-related functions
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+  };
+
+  const loadSyncStatus = async () => {
+    try {
+      const response = await fetch('/api/rnc/sync', {
+        headers: getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSyncStatus(data.data);
+      }
+    } catch (error) {
+      console.error('Error loading sync status:', error);
+    }
+  };
+
+  const loadScheduleSettings = async () => {
+    try {
+      const response = await fetch('/api/rnc/schedule', {
+        headers: getAuthHeaders()
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setScheduleSettings(data.data);
+      }
+    } catch (error) {
+      console.error('Error loading schedule settings:', error);
+    }
+  };
+
+  const handleManualSync = async () => {
+    setSyncing(true);
+    try {
+      const response = await fetch('/api/rnc/sync', {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(`Sincronización exitosa: ${result.data.recordsProcessed} registros procesados`);
+        loadSyncStatus();
+      } else {
+        const error = await response.json();
+        alert(`Error en sincronización: ${error.error}`);
+      }
+    } catch (error) {
+      alert('Error de conexión durante la sincronización');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const saveScheduleSettings = async () => {
+    if (!scheduleSettings) return;
+    
+    setSavingSchedule(true);
+    try {
+      const response = await fetch('/api/rnc/schedule', {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(scheduleSettings)
+      });
+
+      if (response.ok) {
+        alert('Configuración de sincronización guardada exitosamente');
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error}`);
+      }
+    } catch (error) {
+      alert('Error de conexión al guardar configuración');
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
+  // Load RNC data when RNC tab is selected
+  useEffect(() => {
+    if (activeTab === 'rnc') {
+      loadSyncStatus();
+      loadScheduleSettings();
+    }
+  }, [activeTab]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Navigation />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
@@ -130,16 +243,15 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation />
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Configuraciones</h1>
-          <p className="mt-2 text-gray-800">
-            Gestiona la configuración de tu punto de venta
-          </p>
-        </div>
+    <RoleGate roles={['ADMIN', 'MANAGER']}>
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">Configuraciones</h1>
+            <p className="mt-2 text-gray-800">
+              Gestiona la configuración de tu punto de venta
+            </p>
+          </div>
 
         {/* Alert Messages */}
         {error && (
@@ -204,6 +316,16 @@ export default function SettingsPage() {
               }`}
             >
               Información Legal
+            </button>
+            <button
+              onClick={() => setActiveTab('rnc')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'rnc'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-700 hover:text-gray-900 hover:border-gray-300'
+              }`}
+            >
+              🏛️ Base DGII (RNC)
             </button>
           </nav>
         </div>
@@ -479,18 +601,169 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Save Button */}
-          <div className="mt-8 flex justify-end">
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-            >
-              {isSaving ? 'Guardando...' : 'Guardar Configuración'}
-            </button>
-          </div>
+          {/* RNC/DGII Tab */}
+          {activeTab === 'rnc' && (
+            <RoleGate roles={['ADMIN']}>
+              <div className="space-y-8">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">
+                    🏛️ Gestión de Base de Datos DGII
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-6">
+                    Administra la sincronización de la base de datos de RNC de la Dirección General de Impuestos Internos.
+                  </p>
+
+                  {/* Sync Status */}
+                  <div className="bg-gray-50 rounded-lg p-6 mb-6">
+                    <h4 className="text-md font-semibold text-gray-900 mb-4">Estado de Sincronización</h4>
+                    {syncStatus ? (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="text-2xl font-bold text-blue-600">{syncStatus.totalRecords.toLocaleString()}</div>
+                          <div className="text-sm text-gray-600">Registros en Base</div>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="text-sm font-medium text-gray-900">
+                            {syncStatus.lastSync 
+                              ? new Date(syncStatus.lastSync).toLocaleString('es-DO')
+                              : 'Nunca'
+                            }
+                          </div>
+                          <div className="text-sm text-gray-600">Última Sincronización</div>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className={`text-sm font-medium ${syncStatus.isStale ? 'text-red-600' : 'text-green-600'}`}>
+                            {syncStatus.isStale ? '⚠️ Desactualizada' : '✅ Actualizada'}
+                          </div>
+                          <div className="text-sm text-gray-600">Estado</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-4">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                        <p className="mt-2 text-sm text-gray-600">Cargando estado...</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Manual Sync */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+                    <h4 className="text-md font-semibold text-gray-900 mb-2">Sincronización Manual</h4>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Descarga y actualiza la base de datos con los registros más recientes de DGII.
+                    </p>
+                    <button
+                      onClick={handleManualSync}
+                      disabled={syncing}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                    >
+                      {syncing ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          <span>Sincronizando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>🔄</span>
+                          <span>Sincronizar Ahora</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Schedule Settings */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-6">
+                    <h4 className="text-md font-semibold text-gray-900 mb-2">Sincronización Automática</h4>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Configura la sincronización automática diaria de la base de datos.
+                    </p>
+                    
+                    {scheduleSettings && (
+                      <div className="space-y-4">
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="autoSyncEnabled"
+                            checked={scheduleSettings.autoSyncEnabled}
+                            onChange={(e) => setScheduleSettings({
+                              ...scheduleSettings,
+                              autoSyncEnabled: e.target.checked
+                            })}
+                            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <label htmlFor="autoSyncEnabled" className="ml-2 text-sm text-gray-900">
+                            Habilitar sincronización automática
+                          </label>
+                        </div>
+
+                        {scheduleSettings.autoSyncEnabled && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Hora de Sincronización
+                              </label>
+                              <input
+                                type="time"
+                                value={scheduleSettings.scheduleTime}
+                                onChange={(e) => setScheduleSettings({
+                                  ...scheduleSettings,
+                                  scheduleTime: e.target.value
+                                })}
+                                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Zona Horaria
+                              </label>
+                              <select
+                                value={scheduleSettings.timezone}
+                                onChange={(e) => setScheduleSettings({
+                                  ...scheduleSettings,
+                                  timezone: e.target.value
+                                })}
+                                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                              >
+                                <option value="America/Santo_Domingo">República Dominicana (AST)</option>
+                                <option value="America/New_York">Nueva York (EST/EDT)</option>
+                                <option value="UTC">UTC</option>
+                              </select>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="pt-4">
+                          <button
+                            onClick={saveScheduleSettings}
+                            disabled={savingSchedule}
+                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {savingSchedule ? 'Guardando...' : 'Guardar Configuración'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </RoleGate>
+          )}
+
+          {/* Save Button - Only for non-RNC tabs */}
+          {activeTab !== 'rnc' && (
+            <div className="mt-8 flex justify-end">
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              >
+                {isSaving ? 'Guardando...' : 'Guardar Configuración'}
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </div>
+    </RoleGate>
   )
 }

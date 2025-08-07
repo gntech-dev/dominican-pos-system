@@ -46,7 +46,12 @@ export default function CategoriesPage() {
       const params = new URLSearchParams()
       if (includeInactive) params.append('includeInactive', 'true')
       
-      const response = await fetch(`/api/categories?${params}`)
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/categories?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
       const data = await response.json()
 
       if (data.success) {
@@ -109,8 +114,12 @@ export default function CategoriesPage() {
     }
 
     try {
+      const token = localStorage.getItem('token')
       const response = await fetch(`/api/categories/${category.id}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
       })
 
       const data = await response.json()
@@ -180,7 +189,7 @@ export default function CategoriesPage() {
               placeholder="Buscar categorías..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
             />
           </div>
           
@@ -282,7 +291,7 @@ export default function CategoriesPage() {
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
           >
-            <div className="fixed inset-0 bg-black bg-opacity-25" />
+            <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-md" />
           </Transition.Child>
 
           <div className="fixed inset-0 overflow-y-auto">
@@ -296,7 +305,7 @@ export default function CategoriesPage() {
                 leaveFrom="opacity-100 scale-100"
                 leaveTo="opacity-0 scale-95"
               >
-                <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+                <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-xl bg-white p-6 text-left align-middle shadow-2xl border border-gray-200 transition-all">
                   <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900 mb-4">
                     {editingCategory ? 'Editar Categoría' : 'Nueva Categoría'}
                   </Dialog.Title>
@@ -311,7 +320,7 @@ export default function CategoriesPage() {
                         required
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
                         placeholder="Nombre de la categoría"
                       />
                     </div>
@@ -324,7 +333,7 @@ export default function CategoriesPage() {
                         value={formData.description}
                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                         rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
                         placeholder="Descripción de la categoría (opcional)"
                       />
                     </div>

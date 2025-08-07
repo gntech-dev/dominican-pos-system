@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client'
 const createSaleSchema = z.object({
   customerId: z.string().optional(),
   customerRnc: z.string().optional(), // For one-time customers with RNC
+  customerName: z.string().optional(), // For one-time customers with RNC
   ncfType: z.enum(['B01', 'B02']).optional().default('B02'), // B01 for credit fiscal, B02 for consumption
   paymentMethod: z.enum(['CASH', 'CARD', 'TRANSFER', 'CHECK', 'CREDIT']),
   notes: z.string().optional(),
@@ -32,8 +33,14 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const saleData = createSaleSchema.parse(body)
 
-    // Validate NCF requirements
+    // Validate NCF requirements for B01 (Credit Fiscal)
     if (saleData.ncfType === 'B01') {
+      console.log('🏛️ Validating B01 requirements:', {
+        customerId: saleData.customerId,
+        customerRnc: saleData.customerRnc,
+        customerName: saleData.customerName
+      });
+
       if (!saleData.customerId && !saleData.customerRnc) {
         return NextResponse.json({ 
           error: 'Para emitir factura B01 se requiere cliente con RNC válido' 
@@ -44,12 +51,38 @@ export async function POST(req: NextRequest) {
       if (saleData.customerId) {
         const customer = await prisma.customer.findUnique({
           where: { id: saleData.customerId },
-          select: { rnc: true }
+          select: { id: true, name: true, rnc: true }
         })
         
-        if (!customer?.rnc) {
+        console.log('👤 Customer validation for B01:', {
+          customerId: saleData.customerId,
+          foundCustomer: !!customer,
+          customerRnc: customer?.rnc
+        });
+        
+        if (!customer) {
           return NextResponse.json({ 
-            error: 'El cliente seleccionado no tiene RNC registrado para factura B01' 
+            error: 'Cliente no encontrado' 
+          }, { status: 400 })
+        }
+        
+        if (!customer.rnc || customer.rnc.trim() === '') {
+          return NextResponse.json({ 
+            error: `El cliente "${customer.name}" no tiene RNC registrado para factura B01` 
+          }, { status: 400 })
+        }
+      }
+
+      // If using walk-in customer with RNC, validate it exists
+      if (saleData.customerRnc && !saleData.customerId) {
+        console.log('🚶‍♂️ Walk-in customer with RNC for B01:', {
+          rnc: saleData.customerRnc,
+          name: saleData.customerName
+        });
+        
+        if (!saleData.customerRnc.trim()) {
+          return NextResponse.json({ 
+            error: 'RNC inválido para factura B01' 
           }, { status: 400 })
         }
       }
@@ -104,7 +137,10 @@ export async function POST(req: NextRequest) {
           cashierId: authResult.user.userId,
           customerId: saleData.customerId,
           ncfSequenceId,
-        },
+          // Store walk-in customer data for B01 invoices
+          customerRnc: saleData.customerRnc,
+          customerName: saleData.customerName,
+        } as any, // Type assertion for extended Sale fields
         include: {
           cashier: {
             select: { firstName: true, lastName: true, username: true },
