@@ -64,6 +64,7 @@ export async function GET(
       address: businessSettings.address,
       phone: businessSettings.phone,
       email: businessSettings.email,
+      logo: businessSettings.logo || undefined,
       website: businessSettings.website || undefined,
       slogan: businessSettings.slogan || undefined
     }
@@ -80,13 +81,8 @@ export async function GET(
         itbis: parseFloat(sale.itbis.toString()),
         total: parseFloat(sale.total.toString()),
         paymentMethod: sale.paymentMethod,
-        status: sale.status,
         notes: sale.notes || undefined,
-        cashierId: sale.cashierId,
-        customerId: sale.customerId || undefined,
-        ncfSequenceId: sale.ncfSequenceId || undefined,
         createdAt: sale.createdAt.toISOString(),
-        updatedAt: sale.updatedAt.toISOString(),
         items: sale.items.map(item => ({
           id: item.id,
           quantity: item.quantity,

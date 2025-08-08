@@ -292,6 +292,7 @@ export interface ReceiptData {
     address: string
     phone: string
     email?: string
+    logo?: string
     website?: string
     slogan?: string
   }

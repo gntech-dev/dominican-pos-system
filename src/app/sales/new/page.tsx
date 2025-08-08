@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getAuthHeaders } from '@/lib/auth';
 import ReceiptModal from '@/components/receipts/ReceiptModal';
 import FormalInvoiceModal from '@/components/receipts/FormalInvoiceModal';
+import LogoSection from '@/components/ui/LogoSection';
 
 interface Product {
   id: string;
@@ -693,6 +694,12 @@ export default function NewSalePage() {
         <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4 shadow-sm">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
+              {/* Small Logo for POS Interface */}
+              <LogoSection 
+                className="h-10 w-10" 
+                size="small"
+                showFallback={false}
+              />
               <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-lg">💳</span>
               </div>

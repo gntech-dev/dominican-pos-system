@@ -141,6 +141,38 @@ export function useReceiptPrint(options: UseReceiptPrintOptions = {}) {
   const generateReceiptHTML = (receiptData: ReceiptData): string => {
     const { sale, business, cashierName, customerName, customerRnc } = receiptData
     
+    // Auto-detect logo for thermal receipt printing
+    const logoHTML = `
+      <script>
+        async function detectAndInsertLogo() {
+          const logoFormats = ['png', 'jpg', 'jpeg', 'svg'];
+          for (const format of logoFormats) {
+            try {
+              const response = await fetch('/logo.' + format, { method: 'HEAD' });
+              if (response.ok) {
+                const logoImg = document.createElement('img');
+                logoImg.src = '/logo.' + format;
+                logoImg.style.maxWidth = '60mm';
+                logoImg.style.height = '15mm';
+                logoImg.style.objectFit = 'contain';
+                logoImg.style.display = 'block';
+                logoImg.style.margin = '0 auto 2mm auto';
+                
+                const headerElement = document.querySelector('.business-header');
+                if (headerElement) {
+                  headerElement.insertBefore(logoImg, headerElement.firstChild);
+                }
+                return;
+              }
+            } catch (error) {
+              continue;
+            }
+          }
+        }
+        detectAndInsertLogo();
+      </script>
+    `;
+    
     return `
       <!DOCTYPE html>
       <html>
@@ -165,10 +197,12 @@ export function useReceiptPrint(options: UseReceiptPrintOptions = {}) {
           table { width: 100%; border-collapse: collapse; }
           .item-row { border-bottom: 1px dotted #ccc; }
           .totals { border-top: 2px solid #000; margin-top: 5mm; }
+          .business-header { text-align: center; margin-bottom: 3mm; }
         </style>
+        ${logoHTML}
       </head>
       <body onload="window.print(); window.close();">
-        <div class="center">
+        <div class="business-header">
           <div class="bold large">${business.name}</div>
           <div class="small">${business.address}</div>
           <div class="small">Tel: ${business.phone}</div>

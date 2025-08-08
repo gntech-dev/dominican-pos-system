@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import { RoleGate } from '@/contexts/RoleContext'
 import type { BusinessSettings, CreateBusinessSettingsForm } from '@/types'
 
@@ -25,6 +26,11 @@ export default function SettingsPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [activeTab, setActiveTab] = useState('business')
+
+  // Logo upload state
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoUploading, setLogoUploading] = useState(false)
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
 
   // RNC-related state
   const [syncStatus, setSyncStatus] = useState<RncSyncStatus | null>(null)
@@ -55,7 +61,22 @@ export default function SettingsPage() {
   // Fetch business settings on component mount
   useEffect(() => {
     fetchBusinessSettings()
+    loadLogo()
   }, [])
+
+  const loadLogo = async () => {
+    // Check for existing logo
+    for (const ext of ["png", "jpg", "svg"]) {
+      try {
+        const res = await fetch(`/logo.${ext}`, { method: "HEAD" });
+        if (res.ok) {
+          setLogoUrl(`/logo.${ext}`);
+          return;
+        }
+      } catch {}
+    }
+    setLogoUrl(null);
+  };
 
   const fetchBusinessSettings = async () => {
     try {
@@ -227,6 +248,47 @@ export default function SettingsPage() {
     }
   }, [activeTab]);
 
+  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setLogoFile(e.target.files[0]);
+    }
+  };
+
+  const handleLogoUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!logoFile) return;
+    
+    setLogoUploading(true);
+    setError('');
+    setSuccess('');
+    
+    const formData = new FormData();
+    formData.append("logo", logoFile);
+    
+    try {
+      const res = await fetch("/api/upload/logo", {
+        method: "POST",
+        body: formData,
+      });
+      
+      if (res.ok) {
+        const result = await res.json();
+        setSuccess("Logo actualizado correctamente.");
+        setLogoUrl(result.url);
+        setLogoFile(null);
+        // Reset file input
+        const fileInput = document.getElementById('logo-file') as HTMLInputElement;
+        if (fileInput) fileInput.value = '';
+      } else {
+        setError("Error al subir el logo.");
+      }
+    } catch (err) {
+      setError("Error de red al subir el logo.");
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -298,6 +360,16 @@ export default function SettingsPage() {
               Información del Negocio
             </button>
             <button
+              onClick={() => setActiveTab('branding')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'branding'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-700 hover:text-gray-900 hover:border-gray-300'
+              }`}
+            >
+              🎨 Marca e Imagen
+            </button>
+            <button
               onClick={() => setActiveTab('receipt')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'receipt'
@@ -331,12 +403,13 @@ export default function SettingsPage() {
         </div>
 
         {/* Tab Content */}
-        <form onSubmit={handleSubmit} className="mt-8">
+        <div className="mt-8">
           {activeTab === 'business' && (
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6">
-                Información del Negocio
-              </h2>
+            <form onSubmit={handleSubmit}>
+              <div className="bg-white shadow rounded-lg p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-6">
+                  Información del Negocio
+                </h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -505,10 +578,142 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+            
+            <div className="mt-8 flex justify-end">
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              >
+                {isSaving ? 'Guardando...' : 'Guardar Configuración'}
+              </button>
+            </div>
+          </form>
+          )}
+
+          {activeTab === 'branding' && (
+            <div className="space-y-8">
+              {/* Current Logo Display */}
+              <div className="bg-white shadow rounded-lg p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-6">
+                  🎨 Marca e Imagen Corporativa
+                </h2>
+                
+                <div>
+                  <h3 className="text-md font-medium text-gray-900 mb-4">Logo Actual</h3>
+                  <div className="flex items-center space-x-6">
+                    <div className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50">
+                      {logoUrl ? (
+                        <img 
+                          src={logoUrl} 
+                          alt="Logo actual" 
+                          className="max-w-full max-h-full object-contain"
+                        />
+                      ) : (
+                        <div className="text-center">
+                          <svg className="w-8 h-8 text-gray-400 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <p className="text-xs text-gray-500">Sin logo</p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-600 mb-2">
+                        {logoUrl ? 'Logo configurado correctamente' : 'No hay logo configurado'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        El logo aparecerá en la navegación y en los reportes del sistema.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Logo Upload Form - Separate card */}
+              <div className="bg-white shadow rounded-lg p-6">
+                <h3 className="text-md font-medium text-gray-900 mb-4">Subir Nuevo Logo</h3>
+                <form onSubmit={handleLogoUpload} className="space-y-4">
+                    <div>
+                      <label htmlFor="logo-file" className="block text-sm font-medium text-gray-700 mb-2">
+                        Seleccionar archivo de logo
+                      </label>
+                      <input
+                        type="file"
+                        id="logo-file"
+                        accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                        onChange={handleLogoFileChange}
+                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Formatos soportados: PNG, JPG, SVG. Tamaño recomendado: 200x200px o mayor.
+                      </p>
+                    </div>
+                    
+                    {logoFile && (
+                      <div className="flex items-center space-x-4 p-3 bg-blue-50 rounded-lg">
+                        <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-blue-900">{logoFile.name}</p>
+                          <p className="text-xs text-blue-700">{(logoFile.size / 1024).toFixed(1)} KB</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="flex justify-start">
+                      <button
+                        type="submit"
+                        disabled={logoUploading || !logoFile}
+                        className="px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                      >
+                        {logoUploading ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            <span>Subiendo...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <span>Subir Logo</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              
+              {/* Logo Guidelines */}
+              <div className="bg-white shadow rounded-lg p-6">
+                <h3 className="text-md font-medium text-gray-900 mb-4">Recomendaciones para el Logo</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-gray-900 mb-2">📐 Dimensiones</h4>
+                    <ul className="text-sm text-gray-600 space-y-1">
+                      <li>• Mínimo: 100x100px</li>
+                      <li>• Recomendado: 200x200px o superior</li>
+                      <li>• Formato cuadrado preferible</li>
+                    </ul>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-gray-900 mb-2">🎨 Formato</h4>
+                    <ul className="text-sm text-gray-600 space-y-1">
+                      <li>• PNG: Para logos con transparencia</li>
+                      <li>• JPG: Para fotografías o imágenes complejas</li>
+                      <li>• SVG: Para logos vectoriales (escalables)</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
 
           {activeTab === 'legal' && (
-            <div className="bg-white shadow rounded-lg p-6">
+            <form onSubmit={handleSubmit}>
+              <div className="bg-white shadow rounded-lg p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-6">
                 Información Legal y Fiscal
               </h2>
@@ -559,10 +764,22 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+            
+            <div className="mt-8 flex justify-end">
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              >
+                {isSaving ? 'Guardando...' : 'Guardar Configuración'}
+              </button>
+            </div>
+          </form>
           )}
 
           {activeTab === 'receipt' && (
-            <div className="bg-white shadow rounded-lg p-6">
+            <form onSubmit={handleSubmit}>
+              <div className="bg-white shadow rounded-lg p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-6">
                 Configuración de Recibos e Invoices
               </h2>
@@ -599,6 +816,17 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+            
+            <div className="mt-8 flex justify-end">
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              >
+                {isSaving ? 'Guardando...' : 'Guardar Configuración'}
+              </button>
+            </div>
+          </form>
           )}
 
           {/* RNC/DGII Tab */}
@@ -748,20 +976,7 @@ export default function SettingsPage() {
               </div>
             </RoleGate>
           )}
-
-          {/* Save Button - Only for non-RNC tabs */}
-          {activeTab !== 'rnc' && (
-            <div className="mt-8 flex justify-end">
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-              >
-                {isSaving ? 'Guardando...' : 'Guardar Configuración'}
-              </button>
-            </div>
-          )}
-        </form>
+        </div>
       </div>
     </div>
     </RoleGate>

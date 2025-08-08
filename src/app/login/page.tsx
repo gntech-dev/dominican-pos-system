@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatDate } from '@/utils/dominican-validators'
+import LogoSection from '@/components/ui/LogoSection'
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -63,6 +64,15 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="text-center">
+          {/* Business Logo Section */}
+          <div className="flex justify-center mb-6">
+            <LogoSection 
+              className="h-24 mb-4" 
+              size="large"
+              fallbackText="POS"
+              showFallback={true}
+            />
+          </div>
           <h2 className="text-3xl font-bold text-gray-900">
             Sistema POS
           </h2>

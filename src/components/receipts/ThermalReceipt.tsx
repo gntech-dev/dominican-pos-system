@@ -32,6 +32,7 @@ interface ThermalReceiptProps {
       address: string
       phone: string
       email?: string
+      logo?: string
     }
     cashier: {
       firstName: string

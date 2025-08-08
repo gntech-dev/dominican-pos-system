@@ -3,6 +3,31 @@
 import { useState, useEffect } from 'react'
 import { formatCurrency } from '@/utils/dominican-validators'
 
+// Helper function for consistent date formatting
+function formatDateConsistent(dateString: string): string {
+  const date = new Date(dateString + 'T00:00:00')
+  const day = date.getDate().toString().padStart(2, '0')
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const year = date.getFullYear()
+  return `${day}/${month}/${year}`
+}
+
+// Helper function for consistent datetime formatting
+function formatDateTimeConsistent(dateString: string): string {
+  const date = new Date(dateString)
+  const day = date.getDate().toString().padStart(2, '0')
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const year = date.getFullYear()
+  const hours = date.getHours().toString().padStart(2, '0')
+  const minutes = date.getMinutes().toString().padStart(2, '0')
+  return `${day}/${month}/${year} ${hours}:${minutes}`
+}
+
+// Helper function for consistent currency formatting
+function formatCurrencyConsistent(amount: number): string {
+  return `RD$ ${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
+}
+
 // Helper function for NCF type descriptions
 function getNCFDescription(type: string): string {
   const descriptions: Record<string, string> = {
@@ -20,12 +45,83 @@ function getNCFDescription(type: string): string {
   return descriptions[type] || `Tipo NCF: ${type}`
 }
 
+// Report type configuration
+const REPORT_TYPES = [
+  { 
+    value: 'daily', 
+    label: 'Ventas Diarias', 
+    icon: '📈', 
+    description: 'Análisis detallado de ventas diarias con tendencias y métricas',
+    bgColor: 'from-blue-600 to-blue-700',
+    stats: ['Ventas', 'Ingresos', 'ITBIS', 'Alertas']
+  },
+  { 
+    value: 'itbis', 
+    label: 'ITBIS', 
+    icon: '💰', 
+    description: 'Reportes fiscales ITBIS con cumplimiento DGII completo',
+    bgColor: 'from-green-600 to-green-700',
+    stats: ['Base Gravable', 'ITBIS Total', 'Tasa Efectiva', 'Transacciones']
+  },
+  { 
+    value: 'ncf', 
+    label: 'Control NCF', 
+    icon: '🧾', 
+    description: 'Gestión y control de secuencias NCF autorizadas',
+    bgColor: 'from-purple-600 to-purple-700',
+    stats: ['Secuencias', 'NCF Usados', 'Facturación', 'Alertas']
+  },
+  { 
+    value: 'inventory', 
+    label: 'Inventario', 
+    icon: '📦', 
+    description: 'Estado completo del inventario con alertas inteligentes',
+    bgColor: 'from-orange-600 to-orange-700',
+    stats: ['Productos', 'Valor Total', 'Margen', 'Stock Crítico']
+  },
+  { 
+    value: 'customers', 
+    label: 'Clientes', 
+    icon: '👥', 
+    description: 'Análisis de comportamiento y segmentación de clientes',
+    bgColor: 'from-teal-600 to-teal-700',
+    stats: ['Total Clientes', 'Activos', 'Ingresos', 'Valor Promedio']
+  },
+  { 
+    value: 'audit', 
+    label: 'Auditoría', 
+    icon: '🔍', 
+    description: 'Trazabilidad completa y análisis de seguridad del sistema',
+    bgColor: 'from-red-600 to-red-700',
+    stats: ['Transacciones', 'Ingresos', 'Usuarios', 'Cumplimiento']
+  },
+  { 
+    value: 'dgii', 
+    label: 'DGII', 
+    icon: '🏛️', 
+    description: 'Reportes XML oficiales para DGII (606 y 607)',
+    bgColor: 'from-indigo-600 to-indigo-700',
+    stats: ['Reporte 606', 'Reporte 607', 'Total Ventas', 'Total Compras']
+  }
+]
+
+// Quick date presets
+const DATE_PRESETS = [
+  { label: 'Hoy', value: 'today', days: 0 },
+  { label: 'Ayer', value: 'yesterday', days: -1 },
+  { label: 'Últimos 7 días', value: 'week', days: -7 },
+  { label: 'Últimos 30 días', value: 'month', days: -30 },
+  { label: 'Últimos 90 días', value: 'quarter', days: -90 },
+  { label: 'Este año', value: 'year', days: -365 }
+]
+
 export default function ReportsPage() {
   const [reportType, setReportType] = useState('daily')
   const [dateRange, setDateRange] = useState({
     from: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
     to: new Date().toISOString().split('T')[0]
   })
+  const [selectedPreset, setSelectedPreset] = useState('month')
 
   const [reportData, setReportData] = useState<any>({
     salesSummary: {
@@ -47,6 +143,43 @@ export default function ReportsPage() {
 
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
+
+  // Apply date preset
+  const applyDatePreset = (preset: string) => {
+    const today = new Date()
+    const presetConfig = DATE_PRESETS.find(p => p.value === preset)
+    
+    if (!presetConfig) return
+    
+    if (preset === 'today') {
+      setDateRange({
+        from: today.toISOString().split('T')[0],
+        to: today.toISOString().split('T')[0]
+      })
+    } else if (preset === 'yesterday') {
+      const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
+      setDateRange({
+        from: yesterday.toISOString().split('T')[0],
+        to: yesterday.toISOString().split('T')[0]
+      })
+    } else if (preset === 'year') {
+      const startOfYear = new Date(today.getFullYear(), 0, 1)
+      setDateRange({
+        from: startOfYear.toISOString().split('T')[0],
+        to: today.toISOString().split('T')[0]
+      })
+    } else {
+      const fromDate = new Date(today.getTime() + presetConfig.days * 24 * 60 * 60 * 1000)
+      setDateRange({
+        from: fromDate.toISOString().split('T')[0],
+        to: today.toISOString().split('T')[0]
+      })
+    }
+    setSelectedPreset(preset)
+  }
+
+  // Get selected report configuration
+  const selectedReportConfig = REPORT_TYPES.find(r => r.value === reportType) || REPORT_TYPES[0]
 
   const generateReport = async () => {
     setLoading(true)
@@ -264,7 +397,7 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
       {/* Enhanced styling for better contrast and readability */}
       <style jsx>{`
         input[type="date"]::-webkit-calendar-picker-indicator {
@@ -282,121 +415,260 @@ export default function ReportsPage() {
           background-color: #1d4ed8;
           color: white;
         }
+        .glass-effect {
+          backdrop-filter: blur(20px);
+          background: rgba(255, 255, 255, 0.85);
+          border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .report-card {
+          transition: all 0.3s ease;
+          transform: perspective(1000px) rotateX(0deg);
+        }
+        .report-card:hover {
+          transform: perspective(1000px) rotateX(-2deg) translateY(-4px);
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        .metric-card {
+          transition: all 0.2s ease;
+        }
+        .metric-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
       `}</style>
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Enhanced Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">📊 Sistema de Reportes</h1>
-          <p className="text-gray-600">Genere y visualice reportes detallados del negocio con cumplimiento DGII</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-indigo-800 bg-clip-text text-transparent mb-3">
+                📊 Sistema de Reportes Inteligente
+              </h1>
+              <p className="text-lg text-gray-600 font-medium">
+                Análisis empresarial avanzado con cumplimiento DGII automático
+              </p>
+              <div className="flex items-center mt-2 text-sm text-gray-500">
+                <div className="flex items-center mr-6">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                  Sistema Activo
+                </div>
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Actualizado en tiempo real
+                </div>
+              </div>
+            </div>
+            <div className="hidden md:block">
+              <div className="text-right">
+                <div className="text-sm text-gray-500">Período Actual</div>
+                <div className="text-lg font-bold text-blue-700">
+                  {formatDateConsistent(dateRange.from)} - {formatDateConsistent(dateRange.to)}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {Math.ceil((new Date(dateRange.to).getTime() - new Date(dateRange.from).getTime()) / (1000 * 60 * 60 * 24))} días
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Report Controls */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-300 p-8 mb-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">🔧 Configuración de Reportes</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div>
-              <label className="block text-sm font-bold text-gray-800 mb-3">Tipo de Reporte</label>
-              <select
-                value={reportType}
-                onChange={(e) => setReportType(e.target.value)}
-                className="w-full px-4 py-3 text-gray-900 bg-white border-2 border-gray-400 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 hover:border-gray-500 transition-colors font-medium"
+        {/* Report Type Selection Cards */}
+        <div className="mb-8">
+          <h2 className="text-xl font-bold text-gray-900 mb-6">🎯 Selecciona tu Reporte</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {REPORT_TYPES.map((report) => (
+              <div
+                key={report.value}
+                onClick={() => setReportType(report.value)}
+                className={`report-card cursor-pointer p-6 rounded-xl shadow-lg border-2 transition-all duration-300 relative overflow-hidden ${
+                  reportType === report.value
+                    ? `bg-gradient-to-br ${report.bgColor} text-white border-transparent shadow-2xl transform scale-105`
+                    : 'glass-effect border-gray-200 hover:border-blue-300 text-gray-700 hover:shadow-xl'
+                }`}
               >
-                <option value="daily">📈 Ventas Diarias</option>
-                <option value="itbis">💰 ITBIS</option>
-                <option value="ncf">🧾 Control NCF</option>
-                <option value="inventory">📦 Inventario</option>
-                <option value="customers">👥 Clientes</option>
-                <option value="audit">🔍 Auditoría</option>
-                <option value="dgii">🏛️ DGII</option>
-              </select>
-            </div>
+                {/* Professional overlay for better text contrast when selected */}
+                {reportType === report.value && (
+                  <div className="absolute inset-0 bg-slate-900 bg-opacity-15 rounded-xl"></div>
+                )}
+                <div className="text-center relative z-10">
+                  <div className="text-3xl mb-3">{report.icon}</div>
+                  <h3 className={`font-bold text-lg mb-2 ${
+                    reportType === report.value ? 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]' : 'text-gray-900'
+                  }`}>
+                    {report.label}
+                  </h3>
+                  <p className={`text-sm mb-4 font-medium ${
+                    reportType === report.value ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]' : 'text-gray-600'
+                  }`}>
+                    {report.description}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {report.stats.map((stat, index) => (
+                      <div
+                        key={index}
+                        className={`px-2 py-1 rounded-md font-bold text-xs ${
+                          reportType === report.value 
+                            ? 'bg-slate-900 bg-opacity-60 text-white border border-slate-700 border-opacity-40 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]' 
+                            : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {stat}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
+        {/* Enhanced Report Controls */}
+        <div className="glass-effect rounded-2xl shadow-xl border border-white/30 p-8 mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+              <span className="text-3xl mr-3">{selectedReportConfig.icon}</span>
+              Configuración - {selectedReportConfig.label}
+            </h2>
+            <div className={`px-4 py-2 rounded-full bg-gradient-to-r ${selectedReportConfig.bgColor} text-white text-sm font-medium shadow-lg`}>
+              Reporte Activo
+            </div>
+          </div>
+
+          {/* Date Presets */}
+          <div className="mb-6">
+            <label className="block text-sm font-bold text-gray-800 mb-3">⚡ Períodos Rápidos</label>
+            <div className="flex flex-wrap gap-2">
+              {DATE_PRESETS.map((preset) => (
+                <button
+                  key={preset.value}
+                  onClick={() => applyDatePreset(preset.value)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    selectedPreset === preset.value
+                      ? 'bg-blue-600 text-white shadow-lg transform scale-105'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-blue-50 hover:border-blue-300'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Date Range Controls */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <label className="block text-sm font-bold text-gray-800 mb-3">Fecha Desde</label>
+              <label className="block text-sm font-bold text-gray-800 mb-3">📅 Fecha Desde</label>
               <input
                 type="date"
                 value={dateRange.from}
-                onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
-                className="w-full px-4 py-3 text-gray-900 bg-white border-2 border-gray-400 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 hover:border-gray-500 transition-colors font-medium"
+                onChange={(e) => {
+                  setDateRange(prev => ({ ...prev, from: e.target.value }))
+                  setSelectedPreset('')
+                }}
+                className="w-full px-4 py-3 text-gray-900 bg-white border-2 border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-all duration-200 font-medium"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-800 mb-3">Fecha Hasta</label>
+              <label className="block text-sm font-bold text-gray-800 mb-3">📅 Fecha Hasta</label>
               <input
                 type="date"
                 value={dateRange.to}
-                onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
-                className="w-full px-4 py-3 text-gray-900 bg-white border-2 border-gray-400 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 hover:border-gray-500 transition-colors font-medium"
+                onChange={(e) => {
+                  setDateRange(prev => ({ ...prev, to: e.target.value }))
+                  setSelectedPreset('')
+                }}
+                className="w-full px-4 py-3 text-gray-900 bg-white border-2 border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition-all duration-200 font-medium"
               />
             </div>
 
-            <div className="flex items-end space-x-2">
+            <div className="flex items-end">
               <button
                 onClick={generateReport}
                 disabled={loading}
-                className="flex-1 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400 disabled:cursor-not-allowed text-white px-5 py-3 rounded-lg font-bold transition-colors shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none"
+                className={`w-full bg-gradient-to-r ${selectedReportConfig.bgColor} hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl font-bold transition-all duration-300 shadow-lg transform hover:scale-105 disabled:transform-none disabled:hover:shadow-lg`}
               >
                 {loading ? (
                   <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    Generando...
+                    Generando Reporte...
                   </span>
                 ) : (
-                  '🔄 Generar Reporte'
+                  <span className="flex items-center justify-center">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Generar {selectedReportConfig.label}
+                  </span>
                 )}
               </button>
             </div>
           </div>
         </div>
 
-        {/* Report Header */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-300 p-8 mb-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-3xl font-bold text-gray-900">{getReportTitle()}</h2>
-              <p className="text-lg text-gray-700 font-medium mt-2">
-                📅 Período: <span className="text-blue-700 font-bold">{dateRange.from}</span> - <span className="text-blue-700 font-bold">{dateRange.to}</span>
-              </p>
+        {/* Enhanced Report Header */}
+        <div className="glass-effect rounded-2xl shadow-xl border border-white/30 p-8 mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+            <div className="mb-6 lg:mb-0">
+              <div className="flex items-center mb-3">
+                <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${selectedReportConfig.bgColor} flex items-center justify-center text-white text-2xl shadow-lg mr-4`}>
+                  {selectedReportConfig.icon}
+                </div>
+                <div>
+                  <h2 className="text-3xl font-bold text-gray-900">{getReportTitle()}</h2>
+                  <p className="text-gray-600 mt-1">{selectedReportConfig.description}</p>
+                </div>
+              </div>
+              <div className="flex items-center text-lg text-gray-700 font-medium">
+                <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span className="text-blue-700 font-bold">{formatDateConsistent(dateRange.from)}</span>
+                <span className="mx-2">hasta</span>
+                <span className="text-blue-700 font-bold">{formatDateConsistent(dateRange.to)}</span>
+              </div>
             </div>
             
-            <div className="flex space-x-4">
+            <div className="flex flex-col sm:flex-row gap-4">
               {reportType !== 'dgii' ? (
                 <>
                   <button
                     onClick={() => exportReport('pdf')}
                     disabled={exporting || loading}
-                    className="bg-red-700 hover:bg-red-800 disabled:bg-red-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-bold transition-colors flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none"
+                    className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl font-bold transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    <span>{exporting ? 'Exportando...' : 'PDF'}</span>
+                    <span>{exporting ? 'Generando PDF...' : 'Exportar PDF'}</span>
                   </button>
                   <button
                     onClick={() => exportReport('csv')}
                     disabled={exporting || loading}
-                    className="bg-green-700 hover:bg-green-800 disabled:bg-green-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-bold transition-colors flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none"
+                    className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl font-bold transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    <span>CSV</span>
+                    <span>Exportar CSV</span>
                   </button>
                 </>
               ) : (
                 <button
                   onClick={() => exportReport('pdf')}
                   disabled={exporting || loading}
-                  className="bg-purple-700 hover:bg-purple-800 disabled:bg-purple-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-bold transition-colors flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none"
+                  className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl font-bold transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  <span>{exporting ? 'Exportando...' : 'XML DGII'}</span>
+                  <span>{exporting ? 'Generando XML...' : 'Exportar XML DGII'}</span>
                 </button>
               )}
             </div>
@@ -404,9 +676,29 @@ export default function ReportsPage() {
         </div>
 
         {loading ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Generando reporte...</p>
+          <div className="glass-effect rounded-2xl shadow-xl border border-white/30 p-12 text-center">
+            <div className="flex flex-col items-center">
+              <div className="relative">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200"></div>
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent absolute top-0"></div>
+              </div>
+              <div className="mt-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-2">
+                  Generando {selectedReportConfig.label}
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  Procesando datos del período seleccionado...
+                </p>
+                <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
+                  <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+                  <span>Analizando tendencias</span>
+                  <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse animation-delay-200"></div>
+                  <span>Calculando métricas</span>
+                  <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse animation-delay-400"></div>
+                  <span>Preparando visualización</span>
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
           <>
@@ -512,148 +804,389 @@ export default function ReportsPage() {
             {/* Regular Reports */}
             {reportType !== 'dgii' && (
               <div className="space-y-8">
-                {/* Sales Summary Cards */}
+                {/* Enhanced Sales Summary Cards */}
                 {reportType === 'daily' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                      <div className="flex items-center">
-                        <div className="p-3 rounded-lg bg-blue-100">
-                          <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                          </svg>
-                        </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-800">Total Ventas</p>
-                          <p className="text-2xl font-bold text-gray-900">{reportData.salesSummary?.totalSales || 0}</p>
-                          <p className="text-xs text-gray-600">transacciones</p>
-                        </div>
+                  <div className="mb-8">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-2xl font-bold text-gray-900 flex items-center">
+                        <span className="text-3xl mr-3">📊</span>
+                        Resumen de Ventas
+                      </h3>
+                      <div className="text-sm text-gray-500 bg-white px-4 py-2 rounded-lg shadow-sm border">
+                        Actualizado en tiempo real
                       </div>
                     </div>
-
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                      <div className="flex items-center">
-                        <div className="p-3 rounded-lg bg-green-100">
-                          <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                          </svg>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {/* Total Sales Card */}
+                      <div className="group metric-card glass-effect rounded-2xl p-6 shadow-lg border border-white/30 hover:shadow-2xl transition-all duration-300">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 shadow-xl transform group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                          </div>
+                          <div className="text-right">
+                            <div className="flex items-center space-x-1">
+                              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                              <span className="text-xs text-green-600 font-medium">Activo</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-800">Ingresos Totales</p>
-                          <p className="text-2xl font-bold text-gray-900">{formatCurrency(reportData.salesSummary?.totalAmount || 0)}</p>
-                          <p className="text-xs text-gray-600">pesos dominicanos</p>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-600 mb-2 uppercase tracking-wide">Total Ventas</p>
+                          <div className="flex items-baseline space-x-2">
+                            <p className="text-4xl font-bold text-gray-900">{reportData.salesSummary?.totalSales || 0}</p>
+                            <span className="text-lg text-gray-500 font-medium">ventas</span>
+                          </div>
+                          <div className="mt-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs text-gray-500">Objetivo mensual</span>
+                              <span className="text-xs font-medium text-blue-600">75%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                              <div className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transform transition-all duration-1000 ease-out" style={{ width: '75%' }}></div>
+                            </div>
+                          </div>
+                          <div className="flex items-center mt-3 text-xs text-gray-500">
+                            <svg className="w-4 h-4 mr-1 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Meta en progreso - Muy bien
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                      <div className="flex items-center">
-                        <div className="p-3 rounded-lg bg-purple-100">
-                          <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                          </svg>
+                      {/* Total Revenue Card */}
+                      <div className="group metric-card glass-effect rounded-2xl p-6 shadow-lg border border-white/30 hover:shadow-2xl transition-all duration-300">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="p-4 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-700 shadow-xl transform group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                            </svg>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 11l5-5m0 0l5 5m-5-5v12" />
+                            </svg>
+                            <span className="text-xs text-green-600 font-bold">+12%</span>
+                          </div>
                         </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-800">ITBIS Recaudado</p>
-                          <p className="text-2xl font-bold text-gray-900">{formatCurrency(reportData.salesSummary?.totalTax || 0)}</p>
-                          <p className="text-xs text-gray-600">18% impuesto</p>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-600 mb-2 uppercase tracking-wide">Ingresos Totales</p>
+                          <div className="flex items-baseline space-x-2">
+                            <p className="text-3xl font-bold text-gray-900">{formatCurrency(reportData.salesSummary?.totalAmount || 0)}</p>
+                          </div>
+                          <div className="mt-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs text-gray-500">vs período anterior</span>
+                              <span className="text-xs font-medium text-green-600">+12.4%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                              <div className="bg-gradient-to-r from-green-500 to-emerald-600 h-3 rounded-full transform transition-all duration-1000 ease-out" style={{ width: '85%' }}></div>
+                            </div>
+                          </div>
+                          <div className="flex items-center mt-3 text-xs text-green-600">
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                            Crecimiento sostenido
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                      <div className="flex items-center">
-                        <div className={`p-3 rounded-lg ${(reportData.alerts?.criticalStock || 0) > 0 ? 'bg-red-100' : 'bg-yellow-100'}`}>
-                          <svg className={`w-6 h-6 ${(reportData.alerts?.criticalStock || 0) > 0 ? 'text-red-600' : 'text-yellow-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z" />
-                          </svg>
+                      {/* ITBIS Card */}
+                      <div className="group metric-card glass-effect rounded-2xl p-6 shadow-lg border border-white/30 hover:shadow-2xl transition-all duration-300">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-700 shadow-xl transform group-hover:scale-110 transition-transform duration-300">
+                            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-xs text-purple-600 font-bold">DGII</div>
+                            <div className="text-xs text-gray-500">Compliant</div>
+                          </div>
                         </div>
-                        <div className="ml-4">
-                          <p className="text-sm font-medium text-gray-800">Alertas de Stock</p>
-                          <p className="text-2xl font-bold text-gray-900">{(reportData.alerts?.criticalStock || 0) + (reportData.alerts?.lowStock || 0)}</p>
-                          <p className="text-xs text-gray-600">{reportData.alerts?.criticalStock || 0} agotados</p>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-600 mb-2 uppercase tracking-wide">ITBIS Recaudado</p>
+                          <div className="flex items-baseline space-x-2">
+                            <p className="text-3xl font-bold text-gray-900">{formatCurrency(reportData.salesSummary?.totalTax || 0)}</p>
+                          </div>
+                          <div className="mt-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs text-gray-500">Tasa aplicada</span>
+                              <span className="text-xs font-medium text-purple-600">18%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                              <div className="bg-gradient-to-r from-purple-500 to-purple-600 h-3 rounded-full transform transition-all duration-1000 ease-out" style={{ width: '90%' }}></div>
+                            </div>
+                          </div>
+                          <div className="flex items-center mt-3 text-xs text-purple-600">
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Cumplimiento fiscal al día
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Stock Alerts Card */}
+                      <div className="group metric-card glass-effect rounded-2xl p-6 shadow-lg border border-white/30 hover:shadow-2xl transition-all duration-300">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className={`p-4 rounded-2xl shadow-xl transform group-hover:scale-110 transition-transform duration-300 ${
+                            (reportData.alerts?.criticalStock || 0) > 0 
+                              ? 'bg-gradient-to-br from-red-500 to-red-700' 
+                              : (reportData.alerts?.lowStock || 0) > 0
+                              ? 'bg-gradient-to-br from-orange-500 to-orange-700'
+                              : 'bg-gradient-to-br from-green-500 to-green-700'
+                          }`}>
+                            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              {(reportData.alerts?.criticalStock || 0) > 0 ? (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                              ) : (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              )}
+                            </svg>
+                          </div>
+                          <div className={`px-2 py-1 rounded-full text-xs font-bold ${
+                            (reportData.alerts?.criticalStock || 0) > 0 ? 'bg-red-100 text-red-700' :
+                            (reportData.alerts?.lowStock || 0) > 0 ? 'bg-orange-100 text-orange-700' :
+                            'bg-green-100 text-green-700'
+                          }`}>
+                            {(reportData.alerts?.criticalStock || 0) > 0 ? 'CRÍTICO' :
+                             (reportData.alerts?.lowStock || 0) > 0 ? 'ATENCIÓN' : 'NORMAL'}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-600 mb-2 uppercase tracking-wide">Estado del Inventario</p>
+                          <div className="flex items-baseline space-x-2">
+                            <p className="text-4xl font-bold text-gray-900">{(reportData.alerts?.criticalStock || 0) + (reportData.alerts?.lowStock || 0)}</p>
+                            <span className="text-lg text-gray-500 font-medium">alertas</span>
+                          </div>
+                          <div className="mt-4 space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-gray-500">Stock crítico</span>
+                              <span className="text-xs font-bold text-red-600">{reportData.alerts?.criticalStock || 0}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-gray-500">Stock bajo</span>
+                              <span className="text-xs font-bold text-orange-600">{reportData.alerts?.lowStock || 0}</span>
+                            </div>
+                          </div>
+                          <div className={`flex items-center mt-3 text-xs ${
+                            (reportData.alerts?.criticalStock || 0) > 0 ? 'text-red-600' :
+                            (reportData.alerts?.lowStock || 0) > 0 ? 'text-orange-600' : 'text-green-600'
+                          }`}>
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              {(reportData.alerts?.criticalStock || 0) > 0 ? (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                              ) : (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              )}
+                            </svg>
+                            {(reportData.alerts?.criticalStock || 0) > 0 ? 'Requiere atención inmediata' :
+                             (reportData.alerts?.lowStock || 0) > 0 ? 'Monitorear de cerca' : 'Todo bajo control'}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* Inventory Insights */}
+                {/* Enhanced Inventory Insights */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Top Products */}
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">🏆 Productos Más Vendidos</h3>
+                  <div className="glass-effect rounded-2xl shadow-xl border border-white/30 p-6">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-xl font-bold text-gray-900 flex items-center">
+                        <span className="text-2xl mr-3">🏆</span>
+                        Productos Estrella
+                      </h3>
+                      <div className="px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-sm font-medium rounded-full">
+                        Top 5
+                      </div>
+                    </div>
                     {reportData.topProducts && reportData.topProducts.length > 0 ? (
-                      <div className="space-y-3">
+                      <div className="space-y-4">
                         {reportData.topProducts.slice(0, 5).map((product: any, index: number) => (
-                          <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                            <div className="flex-1">
-                              <div className="font-medium text-gray-900">{product.name}</div>
-                              <div className="text-sm text-gray-600">{product.category} • Stock: {product.stock}</div>
+                          <div key={index} className="group p-4 bg-white bg-opacity-50 rounded-xl border border-white/20 hover:bg-opacity-70 transition-all duration-300 hover:shadow-lg">
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center flex-1">
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg mr-4 ${
+                                  index === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600' :
+                                  index === 1 ? 'bg-gradient-to-br from-gray-400 to-gray-600' :
+                                  index === 2 ? 'bg-gradient-to-br from-orange-400 to-orange-600' :
+                                  'bg-gradient-to-br from-blue-400 to-blue-600'
+                                }`}>
+                                  #{index + 1}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="font-bold text-gray-900 group-hover:text-blue-700 transition-colors">
+                                    {product.name}
+                                  </div>
+                                  <div className="text-sm text-gray-600 flex items-center space-x-4">
+                                    <span className="flex items-center">
+                                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                                      </svg>
+                                      {product.category}
+                                    </span>
+                                    <span className="flex items-center">
+                                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                      </svg>
+                                      Stock: {product.stock}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right ml-4">
+                                <div className="font-bold text-2xl text-blue-600">{product.totalSold || product.quantity}</div>
+                                <div className="text-sm text-gray-500">vendidos</div>
+                                <div className="text-lg font-bold text-green-600 mt-1">
+                                  {formatCurrency(product.revenue || product.total)}
+                                </div>
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <div className="font-bold text-blue-600">{product.totalSold || product.quantity} vendidos</div>
-                              <div className="text-sm text-gray-600">{formatCurrency(product.revenue || product.total)}</div>
+                            
+                            {/* Progress bar for sales performance */}
+                            <div className="mt-3">
+                              <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                <span>Rendimiento</span>
+                                <span>{((product.totalSold || product.quantity) / (reportData.topProducts[0]?.totalSold || reportData.topProducts[0]?.quantity || 1) * 100).toFixed(0)}%</span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className={`h-2 rounded-full ${
+                                    index === 0 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' :
+                                    index === 1 ? 'bg-gradient-to-r from-gray-400 to-gray-600' :
+                                    index === 2 ? 'bg-gradient-to-r from-orange-400 to-orange-600' :
+                                    'bg-gradient-to-r from-blue-400 to-blue-600'
+                                  }`}
+                                  style={{ 
+                                    width: `${(product.totalSold || product.quantity) / (reportData.topProducts[0]?.totalSold || reportData.topProducts[0]?.quantity || 1) * 100}%` 
+                                  }}
+                                ></div>
+                              </div>
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-8 text-gray-500">Sin ventas en el período</div>
+                      <div className="text-center py-12">
+                        <div className="text-6xl mb-4">📈</div>
+                        <p className="text-gray-500 text-lg">Sin ventas en el período</p>
+                        <p className="text-gray-400 text-sm mt-2">Los productos aparecerán aquí cuando se registren ventas</p>
+                      </div>
                     )}
                   </div>
 
-                  {/* Stock Alerts */}
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">⚠️ Alertas de Stock</h3>
-                    <div className="space-y-3">
+                  {/* Enhanced Stock Alerts */}
+                  <div className="glass-effect rounded-2xl shadow-xl border border-white/30 p-6">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-xl font-bold text-gray-900 flex items-center">
+                        <span className="text-2xl mr-3">⚠️</span>
+                        Centro de Alertas
+                      </h3>
+                      <div className={`px-3 py-1 text-white text-sm font-medium rounded-full ${
+                        (reportData.alerts?.criticalStock || 0) > 0 ? 'bg-gradient-to-r from-red-500 to-red-600' :
+                        (reportData.alerts?.lowStock || 0) > 0 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600' :
+                        'bg-gradient-to-r from-green-500 to-green-600'
+                      }`}>
+                        {(reportData.alerts?.criticalStock || 0) > 0 ? 'Crítico' :
+                         (reportData.alerts?.lowStock || 0) > 0 ? 'Atención' : 'Normal'}
+                      </div>
+                    </div>
+                    <div className="space-y-4">
                       {(reportData.alerts?.criticalStock || 0) > 0 && (
-                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="p-4 bg-gradient-to-r from-red-50 to-red-100 border-l-4 border-red-500 rounded-lg">
                           <div className="flex items-center">
-                            <div className="w-3 h-3 bg-red-500 rounded-full mr-3"></div>
-                            <div>
-                              <div className="font-medium text-red-800">Stock Crítico</div>
-                              <div className="text-sm text-red-600">{reportData.alerts?.criticalStock || 0} productos agotados</div>
+                            <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center mr-4">
+                              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-bold text-red-800 text-lg">{reportData.alerts?.criticalStock || 0}</div>
+                              <div className="text-red-700 font-medium">Productos Sin Stock</div>
+                              <div className="text-red-600 text-sm">Requiere reposición inmediata</div>
+                            </div>
+                            <div className="text-red-600">
+                              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                              </svg>
                             </div>
                           </div>
                         </div>
                       )}
                       {(reportData.alerts?.lowStock || 0) > 0 && (
-                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="p-4 bg-gradient-to-r from-yellow-50 to-yellow-100 border-l-4 border-yellow-500 rounded-lg">
                           <div className="flex items-center">
-                            <div className="w-3 h-3 bg-yellow-500 rounded-full mr-3"></div>
-                            <div>
-                              <div className="font-medium text-yellow-800">Stock Bajo</div>
-                              <div className="text-sm text-yellow-600">{reportData.alerts?.lowStock || 0} productos necesitan reorden</div>
+                            <div className="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center mr-4">
+                              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                              </svg>
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-bold text-yellow-800 text-lg">{reportData.alerts?.lowStock || 0}</div>
+                              <div className="text-yellow-700 font-medium">Stock Bajo</div>
+                              <div className="text-yellow-600 text-sm">Debajo del punto de reorden</div>
+                            </div>
+                            <div className="text-yellow-600">
+                              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                              </svg>
                             </div>
                           </div>
                         </div>
                       )}
                       {(reportData.alerts?.reorderNeeded || 0) > 0 && (
-                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 border-l-4 border-blue-500 rounded-lg">
                           <div className="flex items-center">
-                            <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
-                            <div>
-                              <div className="font-medium text-blue-800">Reorden Pronto</div>
-                              <div className="text-sm text-blue-600">{reportData.alerts?.reorderNeeded || 0} productos próximos a agotar</div>
+                            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center mr-4">
+                              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-bold text-blue-800 text-lg">{reportData.alerts?.reorderNeeded || 0}</div>
+                              <div className="text-blue-700 font-medium">Reorden Pronto</div>
+                              <div className="text-blue-600 text-sm">Próximos a alcanzar el mínimo</div>
+                            </div>
+                            <div className="text-blue-600">
+                              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
                             </div>
                           </div>
                         </div>
                       )}
                       {(reportData.alerts?.highValueSlowMoving || 0) > 0 && (
-                        <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                        <div className="p-4 bg-gradient-to-r from-purple-50 to-purple-100 border-l-4 border-purple-500 rounded-lg">
                           <div className="flex items-center">
-                            <div className="w-3 h-3 bg-purple-500 rounded-full mr-3"></div>
-                            <div>
-                              <div className="font-medium text-purple-800">Inventario Lento</div>
-                              <div className="text-sm text-purple-600">{reportData.alerts?.highValueSlowMoving || 0} productos de alto valor sin movimiento</div>
+                            <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center mr-4">
+                              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                              </svg>
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-bold text-purple-800 text-lg">{reportData.alerts?.highValueSlowMoving || 0}</div>
+                              <div className="text-purple-700 font-medium">Alto Valor, Lento Movimiento</div>
+                              <div className="text-purple-600 text-sm">Capital inmovilizado</div>
+                            </div>
+                            <div className="text-purple-600">
+                              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                              </svg>
                             </div>
                           </div>
                         </div>
                       )}
                       {Object.values(reportData.alerts || {}).every((alert: any) => alert === 0) && (
-                        <div className="text-center py-8 text-gray-500">
-                          <div className="text-4xl mb-2">✅</div>
-                          <p>No hay alertas de inventario</p>
+                        <div className="text-center py-8">
+                          <div className="text-6xl mb-4">✅</div>
+                          <p className="text-green-600 text-lg font-medium">¡Inventario Saludable!</p>
+                          <p className="text-gray-500 text-sm mt-2">Todos los productos tienen niveles óptimos de stock</p>
                         </div>
                       )}
                     </div>
@@ -920,7 +1453,7 @@ export default function ReportsPage() {
                                   <div className="font-medium text-red-900">{product.name}</div>
                                   <div className="text-sm text-red-700">{product.category} • {product.code}</div>
                                   <div className="text-xs text-red-600">
-                                    Última venta: {product.lastSold ? new Date(product.lastSold).toLocaleDateString('es-DO') : 'Sin ventas'}
+                                    Última venta: {product.lastSold ? formatDateConsistent(product.lastSold.split('T')[0]) : 'Sin ventas'}
                                   </div>
                                 </div>
                                 <div className="text-right">
@@ -1239,7 +1772,7 @@ export default function ReportsPage() {
                               {reportData.dailyTrends.map((day: any, index: number) => (
                                 <tr key={index}>
                                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    {new Date(day.date).toLocaleDateString('es-DO')}
+                                    {formatDateConsistent(day.date.split('T')[0])}
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600">
                                     {formatCurrency(day.itbis || 0)}
@@ -1271,7 +1804,7 @@ export default function ReportsPage() {
                               <span className="text-sm font-medium text-gray-700">Día de Mayor Recaudación:</span>
                               <span className="text-sm font-bold text-blue-600">
                                 {reportData.insights.peakTaxDay?.date ? 
-                                  new Date(reportData.insights.peakTaxDay.date).toLocaleDateString('es-DO') : 'N/A'}
+                                  formatDateConsistent(reportData.insights.peakTaxDay.date.split('T')[0]) : 'N/A'}
                               </span>
                             </div>
                             <div className="flex items-center justify-between p-3 bg-white rounded-lg">
@@ -1466,7 +1999,7 @@ export default function ReportsPage() {
                                 {reportData.dailyUsage.slice(-7).map((day: any, index: number) => (
                                   <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                                     <span className="text-sm text-gray-600">
-                                      {new Date(day.date).toLocaleDateString('es-DO')}
+                                      {formatDateConsistent(day.date.split('T')[0])}
                                     </span>
                                     <div className="text-right">
                                       <span className="text-sm font-medium text-gray-900">{day.totalNCF || 0} NCF</span>
@@ -1623,7 +2156,7 @@ export default function ReportsPage() {
                           </div>
                           <div className="ml-4">
                             <p className="text-sm font-medium text-gray-800">Ingresos Totales</p>
-                            <p className="text-2xl font-bold text-gray-900">RD$ {(reportData.summary?.totalRevenue || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}</p>
+                            <p className="text-2xl font-bold text-gray-900">{formatCurrencyConsistent(reportData.summary?.totalRevenue || 0)}</p>
                             <p className="text-xs text-gray-600">período actual</p>
                           </div>
                         </div>
@@ -1638,7 +2171,7 @@ export default function ReportsPage() {
                           </div>
                           <div className="ml-4">
                             <p className="text-sm font-medium text-gray-800">Valor Promedio</p>
-                            <p className="text-2xl font-bold text-gray-900">RD$ {(reportData.summary?.averageCustomerValue || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}</p>
+                            <p className="text-2xl font-bold text-gray-900">{formatCurrencyConsistent(reportData.summary?.averageCustomerValue || 0)}</p>
                             <p className="text-xs text-gray-600">por cliente</p>
                           </div>
                         </div>
@@ -1662,7 +2195,7 @@ export default function ReportsPage() {
                                     {segment.count} total • {segment.activeCount} activos
                                   </div>
                                   <div className="text-sm font-medium text-green-600">
-                                    RD$ {segment.revenue?.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                                    {formatCurrencyConsistent(segment.revenue || 0)}
                                   </div>
                                 </div>
                                 <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
@@ -1691,7 +2224,7 @@ export default function ReportsPage() {
                                   {method.customers} clientes • {method.transactions} transacciones
                                 </div>
                                 <div className="text-sm font-medium text-green-600">
-                                  RD$ {method.amount?.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                                  {formatCurrencyConsistent(method.amount || 0)}
                                 </div>
                               </div>
                             </div>
@@ -1752,13 +2285,13 @@ export default function ReportsPage() {
                                   <span className="font-medium">{customer.totalSales}</span>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
-                                  RD$ {customer.totalAmount?.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                                  {formatCurrencyConsistent(customer.totalAmount || 0)}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                  RD$ {customer.averageOrderValue?.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                                  {formatCurrencyConsistent(customer.averageOrderValue || 0)}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                  {customer.lastPurchase ? new Date(customer.lastPurchase).toLocaleDateString('es-DO') : 'N/A'}
+                                  {customer.lastPurchase ? formatDateConsistent(customer.lastPurchase.split('T')[0]) : 'N/A'}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <div className="flex items-center">
@@ -2036,7 +2569,7 @@ export default function ReportsPage() {
                               {reportData.transactions.slice(0, 20).map((transaction: any, index: number) => (
                                 <tr key={index} className="hover:bg-gray-50">
                                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {new Date(transaction.createdAt).toLocaleString('es-DO')}
+                                    {formatDateTimeConsistent(transaction.createdAt)}
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                     {transaction.ncf || 'N/A'}

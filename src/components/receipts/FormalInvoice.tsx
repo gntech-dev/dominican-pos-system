@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { formatCurrency, formatDate, formatRNC } from '@/utils/dominican-validators'
+import LogoSection from '@/components/ui/LogoSection'
 
 interface FormalInvoiceProps {
   receiptData: {
@@ -126,9 +127,14 @@ export default function FormalInvoice({ receiptData, onPrint }: FormalInvoicePro
         {/* Header */}
         <div className="flex justify-between items-start border-b-2 border-gray-300 pb-6">
           <div className="flex-1">
-            {business.logo && (
-              <img src={business.logo} alt="Logo" className="h-16 mb-4" />
-            )}
+            {/* Logo Section - Enhanced with auto-detection */}
+            <LogoSection 
+              businessLogo={business.logo} 
+              className="h-20 mb-4" 
+              size="large"
+              fallbackText={business.name}
+              showFallback={true}
+            />
             <h1 className="text-2xl font-bold text-gray-900 mb-2">{business.name}</h1>
             <div className="text-gray-700 space-y-1">
               <p>{business.address}</p>

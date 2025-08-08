@@ -74,6 +74,131 @@ export async function POST(req: NextRequest) {
   }
 }
 
+/**
+ * Generate PDF header with business logo and branding
+ */
+async function generatePDFHeader(doc: jsPDF, reportType: string, dateRange: { from: string; to: string }) {
+  try {
+    // Try to load business logo from file system
+    const fs = await import('fs')
+    const path = await import('path')
+    
+    const logoFormats = ['png', 'jpg', 'jpeg'] // Focus on formats jsPDF can handle easily
+    let logoAdded = false
+    let businessName = 'Sistema POS'
+    
+    // Try to get business name from database
+    try {
+      const { prisma } = await import('@/lib/prisma')
+      const businessSettings = await prisma.businessSettings.findFirst({
+        where: { isActive: true, isDefault: true }
+      })
+      if (businessSettings) {
+        businessName = businessSettings.name
+        
+        // Check if business has a logo URL stored and it's a supported format
+        if (businessSettings.logo && businessSettings.logo.trim()) {
+          const logoPath = businessSettings.logo.startsWith('/') 
+            ? path.join(process.cwd(), 'public', businessSettings.logo)
+            : path.join(process.cwd(), 'public', businessSettings.logo)
+          
+          // For SVG, we'll use a fallback approach
+          if (businessSettings.logo.endsWith('.svg')) {
+            // Add business name prominently for SVG files
+            doc.setFontSize(18)
+            doc.setTextColor(0, 50, 100)
+            doc.text(businessName, 20, 25)
+            logoAdded = true
+          } else if (fs.existsSync(logoPath)) {
+            try {
+              // Read and embed the image
+              const imageData = fs.readFileSync(logoPath)
+              const base64Image = imageData.toString('base64')
+              const imageFormat = businessSettings.logo.split('.').pop()?.toLowerCase()
+              
+              if (imageFormat === 'png' || imageFormat === 'jpg' || imageFormat === 'jpeg') {
+                const dataUri = `data:image/${imageFormat === 'jpg' ? 'jpeg' : imageFormat};base64,${base64Image}`
+                doc.addImage(dataUri, imageFormat.toUpperCase(), 20, 10, 40, 20)
+                logoAdded = true
+                console.log(`✅ PDF Logo embedded: ${businessSettings.logo}`)
+              }
+            } catch (imageError) {
+              console.log(`❌ Could not embed logo: ${imageError}`)
+              // Fallback to business name
+              doc.setFontSize(18)
+              doc.setTextColor(0, 50, 100)
+              doc.text(businessName, 20, 25)
+              logoAdded = true
+            }
+          }
+        }
+      }
+    } catch (dbError) {
+      console.log('Could not fetch business settings from database')
+    }
+    
+    // If no logo from database, try to detect file system logos
+    if (!logoAdded) {
+      for (const format of logoFormats) {
+        try {
+          const logoPath = path.join(process.cwd(), 'public', `logo.${format}`)
+          if (fs.existsSync(logoPath)) {
+            try {
+              // Read and embed the image
+              const imageData = fs.readFileSync(logoPath)
+              const base64Image = imageData.toString('base64')
+              const dataUri = `data:image/${format === 'jpg' ? 'jpeg' : format};base64,${base64Image}`
+              doc.addImage(dataUri, format.toUpperCase(), 20, 10, 40, 20)
+              logoAdded = true
+              console.log(`✅ PDF Logo embedded from file system: logo.${format}`)
+              break
+            } catch (imageError) {
+              console.log(`❌ Could not embed logo.${format}: ${imageError}`)
+              continue
+            }
+          }
+        } catch (error) {
+          continue
+        }
+      }
+    }
+    
+    // Header text positioning - adjusted for better spacing
+    const headerY = logoAdded ? 40 : 20
+    doc.setFontSize(18)
+    doc.setTextColor(0, 0, 0)
+    doc.text(`${businessName} - REPORTE`, logoAdded ? 70 : 20, headerY)
+    
+    doc.setFontSize(12)
+    doc.setTextColor(60, 60, 60)
+    doc.text(`Tipo: ${getReportTitle(reportType)}`, 20, headerY + 20)
+    doc.text(`Periodo: ${formatDate(dateRange.from)} - ${formatDate(dateRange.to)}`, 20, headerY + 32)
+    doc.text(`Generado: ${formatDate(new Date().toISOString())}`, 20, headerY + 44)
+    
+    // Add a separator line with more spacing
+    doc.setTextColor(0, 0, 0)
+    doc.text('_'.repeat(80), 20, headerY + 54)
+    
+  } catch (error) {
+    console.log('Logo loading failed, using text-only header:', error)
+    
+    // Fallback header without logo
+    doc.setFontSize(20)
+    doc.setTextColor(0, 0, 0)
+    doc.text('SISTEMA POS - REPORTE', 20, 20)
+    
+    doc.setFontSize(14)
+    doc.setTextColor(60, 60, 60)
+    doc.text(`Tipo: ${getReportTitle(reportType)}`, 20, 35)
+    doc.text(`Periodo: ${formatDate(dateRange.from)} - ${formatDate(dateRange.to)}`, 20, 45)
+    doc.text(`Generado: ${formatDate(new Date().toISOString())}`, 20, 55)
+    
+    // Add a separator line
+    doc.setTextColor(0, 0, 0)
+    doc.text('_'.repeat(80), 20, 60)
+  }
+}
+
 async function exportToPDF(reportType: string, data: any, dateRange: { from: string; to: string }) {
   try {
     // Ensure autoTable is loaded first
@@ -101,22 +226,10 @@ async function exportToPDF(reportType: string, data: any, dateRange: { from: str
     doc.internal.pageSize.width = 210  // A4 width in mm
     doc.internal.pageSize.height = 297 // A4 height in mm
     
-    // Header with safe ASCII characters
-    doc.setFontSize(20)
-    doc.setTextColor(0, 0, 0) // Black text
-    doc.text('SISTEMA POS - REPORTE', 20, 20)
+    // Generate PDF with logo header
+    await generatePDFHeader(doc, reportType, dateRange)
     
-    doc.setFontSize(14)
-    doc.setTextColor(60, 60, 60) // Dark gray
-    doc.text(`Tipo: ${getReportTitle(reportType)}`, 20, 35)
-    doc.text(`Periodo: ${formatDate(dateRange.from)} - ${formatDate(dateRange.to)}`, 20, 45)
-    doc.text(`Generado: ${formatDate(new Date().toISOString())}`, 20, 55)
-    
-    // Add a separator line using safe characters
-    doc.setTextColor(0, 0, 0)
-    doc.text('_'.repeat(80), 20, 60)
-    
-    let yPosition = 70
+    let yPosition = 105
 
     switch (reportType) {
       case 'daily':
@@ -399,8 +512,7 @@ async function generateDailyPDF(doc: jsPDF, data: any, yPosition: number): Promi
           fontStyle: 'bold',
           fontSize: config.fontSize + 1
         },
-        columnStyles: config.columnStyles,
-        showHead: 'everyPage'
+        columnStyles: config.columnStyles
       });
       yPosition = (doc as any).lastAutoTable?.finalY + 15 || yPosition + 80;
     }
@@ -497,8 +609,7 @@ async function generateDailyPDF(doc: jsPDF, data: any, yPosition: number): Promi
           3: { cellWidth: 28, halign: 'right' },
           4: { cellWidth: 25, halign: 'right' },
           5: { cellWidth: 20, halign: 'center' }
-        },
-        showHead: 'everyPage'
+        }
       });
       yPosition = (doc as any).lastAutoTable?.finalY + 15 || yPosition + 80;
     }
