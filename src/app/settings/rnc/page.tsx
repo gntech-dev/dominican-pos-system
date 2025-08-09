@@ -259,20 +259,20 @@ export default function RncManagementPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setScheduleSettings(prev => ({ ...prev, enabled: !prev.enabled }))}
+                onClick={() => setScheduleSettings(prev => prev ? { ...prev, enabled: !prev.enabled } : { enabled: false, scheduleTime: '02:00', timezone: 'America/Santo_Domingo', lastScheduledRun: null, autoSyncEnabled: false })}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  scheduleSettings.enabled ? 'bg-blue-600' : 'bg-gray-200'
+                  scheduleSettings?.enabled ? 'bg-blue-600' : 'bg-gray-200'
                 }`}
               >
                 <span
                   className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                    scheduleSettings.enabled ? 'translate-x-6' : 'translate-x-1'
+                    scheduleSettings?.enabled ? 'translate-x-6' : 'translate-x-1'
                   }`}
                 />
               </button>
             </div>
 
-            {scheduleSettings.enabled && (
+            {scheduleSettings?.enabled && (
               <div className="pl-4 border-l-2 border-blue-200 space-y-4">
                 <div>
                   <label htmlFor="sync-time" className="block text-sm font-medium text-gray-700 mb-2">
@@ -281,8 +281,8 @@ export default function RncManagementPage() {
                   <input
                     type="time"
                     id="sync-time"
-                    value={scheduleSettings.time}
-                    onChange={(e) => setScheduleSettings(prev => ({ ...prev, time: e.target.value }))}
+                    value={scheduleSettings?.scheduleTime || '02:00'}
+                    onChange={(e) => setScheduleSettings(prev => prev ? { ...prev, scheduleTime: e.target.value } : { enabled: false, scheduleTime: e.target.value, timezone: 'America/Santo_Domingo', lastScheduledRun: null, autoSyncEnabled: false })}
                     className="block w-48 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                   />
                   <p className="mt-1 text-xs text-gray-500">
@@ -292,15 +292,15 @@ export default function RncManagementPage() {
 
                 <div className="flex gap-3">
                   <button
-                    onClick={updateScheduleSettings}
-                    disabled={!scheduleSettings.time}
+                    onClick={() => updateScheduleSettings({})}
+                    disabled={!scheduleSettings?.scheduleTime}
                     className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Guardar Configuración
                   </button>
                   
                   <button
-                    onClick={() => setScheduleSettings({ enabled: false, time: '02:00' })}
+                    onClick={() => setScheduleSettings({ enabled: false, scheduleTime: '02:00', timezone: 'America/Santo_Domingo', lastScheduledRun: null, autoSyncEnabled: false })}
                     className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300"
                   >
                     Cancelar

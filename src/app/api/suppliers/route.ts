@@ -56,12 +56,11 @@ export async function POST(req: NextRequest) {
     const supplier = await prisma.supplier.create({
       data: {
         name: data.name,
-        contactName: data.contactName,
-        contactPhone: data.phone,
-        contactEmail: data.email,
+        contactPerson: data.contactName,
+        phone: data.phone,
+        email: data.email,
         rnc: data.rnc,
         address: data.address,
-        status: 'ACTIVE',
         paymentTerms: data.paymentTerms || 'NET30',
       },
     })
@@ -90,12 +89,12 @@ export async function PUT(req: NextRequest) {
       where: { id: data.id },
       data: {
         name: data.name,
-        contactName: data.contactName,
-        contactPhone: data.phone,
-        contactEmail: data.email,
+        contactPerson: data.contactName,
+        phone: data.phone,
+        email: data.email,
         rnc: data.rnc,
         address: data.address,
-        status: data.status,
+        isActive: data.status === 'ACTIVE',
         paymentTerms: data.paymentTerms,
       },
     })

@@ -13,14 +13,15 @@ import { verifyJWT, requireRole } from '@/lib/auth'
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+    const { id } = await params
   try {
     const user = await verifyJWT(req)
     requireRole(user, ['ADMIN', 'MANAGER'])
 
     const purchaseOrder = await prisma.purchaseOrder.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         supplier: true,
         items: {
@@ -71,8 +72,9 @@ export async function GET(
  */
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+    const { id } = await params
   try {
     const user = await verifyJWT(req)
     requireRole(user, ['ADMIN', 'MANAGER'])
@@ -85,7 +87,7 @@ export async function PUT(
       const purchaseOrder = await prisma.$transaction(async (tx) => {
         // Update purchase order status
         const po = await tx.purchaseOrder.update({
-          where: { id: params.id },
+          where: { id: id },
           data: {
             status: 'RECEIVED',
             receivedDate: new Date(),
@@ -138,7 +140,7 @@ export async function PUT(
     if (data.status) updateData.status = data.status
 
     const purchaseOrder = await prisma.purchaseOrder.update({
-      where: { id: params.id },
+      where: { id: id },
       data: updateData,
       include: {
         supplier: true,
@@ -170,15 +172,16 @@ export async function PUT(
  */
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+    const { id } = await params
   try {
     const user = await verifyJWT(req)
     requireRole(user, ['ADMIN'])
 
     // Check if purchase order exists and is not received
     const existingPO = await prisma.purchaseOrder.findUnique({
-      where: { id: params.id }
+      where: { id: id }
     })
 
     if (!existingPO) {
@@ -194,7 +197,7 @@ export async function DELETE(
     }
 
     await prisma.purchaseOrder.delete({
-      where: { id: params.id }
+      where: { id: id }
     })
 
     return NextResponse.json({

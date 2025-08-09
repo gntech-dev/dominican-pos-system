@@ -6,10 +6,11 @@ import bcrypt from 'bcryptjs'
 
 const createUserSchema = z.object({
   email: z.string().email('Email inválido'),
+  username: z.string().min(3, 'El nombre de usuario debe tener al menos 3 caracteres'),
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
   firstName: z.string().min(1, 'Nombre requerido'),
   lastName: z.string().min(1, 'Apellido requerido'),
-  role: z.enum(['ADMIN', 'MANAGER', 'CASHIER', 'REPORTER'], {
+  role: z.enum(['ADMIN', 'MANAGER', 'CASHIER'], {
     message: 'Rol inválido'
   }),
   isActive: z.boolean().default(true),

@@ -155,7 +155,7 @@ export async function GET(req: NextRequest) {
     if (check === 'all' || check === 'ncf') {
       // Check NCF sequences status
       try {
-        const ncfSequences = await prisma.nCFSequence.findMany({
+        const ncfSequences = await prisma.ncfSequence.findMany({
           orderBy: {
             type: 'asc'
           }
@@ -164,9 +164,9 @@ export async function GET(req: NextRequest) {
         result.ncfStatus = ncfSequences.map(seq => ({
           type: seq.type,
           currentNumber: seq.currentNumber,
-          endNumber: seq.endNumber,
-          remaining: seq.endNumber - seq.currentNumber,
-          percentUsed: ((seq.currentNumber / seq.endNumber) * 100).toFixed(1) + '%',
+          endNumber: seq.maxNumber,
+          remaining: seq.maxNumber - seq.currentNumber,
+          percentUsed: ((seq.currentNumber / seq.maxNumber) * 100).toFixed(1) + '%',
           active: seq.isActive
         }))
       } catch (error) {

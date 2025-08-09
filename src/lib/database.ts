@@ -188,7 +188,7 @@ export const withOptimizedConnection = async <T>(
     ]);
     
     const duration = Date.now() - start;
-    logger.performance('Database operation', duration);
+    logger.info('Database operation completed', { duration });
     
     return result;
   } catch (error) {
@@ -207,12 +207,12 @@ export const withTransaction = async <T>(
   operation: (tx: PrismaClient) => Promise<T>,
   maxRetries: number = 3
 ): Promise<T> => {
-  let lastError: Error;
+  let lastError: Error = new Error('Unknown transaction error');
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await prisma.$transaction(async (tx) => {
-        return await operation(tx);
+        return await operation(tx as any);
       }, {
         maxWait: 5000,
         timeout: 30000,

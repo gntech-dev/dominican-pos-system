@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('❌ Sales trends analysis error:', error)
     return NextResponse.json(
-      { error: 'Failed to generate sales trends analysis', details: error.message },
+      { error: 'Failed to generate sales trends analysis', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }

@@ -116,7 +116,7 @@ export default function NavigationPreview() {
                 <ul className="space-y-2 text-gray-600">
                   <li>✅ Clean and uncluttered design</li>
                   <li>✅ Quick access to most important functions</li>
-                  <li>✅ Prominent "Nueva Venta" button for main action</li>
+                  <li>✅ Prominent &quot;Nueva Venta&quot; button for main action</li>
                   <li>✅ Contextual breadcrumb shows current location</li>
                   <li>✅ Perfect for fast-paced retail environments</li>
                 </ul>
@@ -137,7 +137,7 @@ export default function NavigationPreview() {
         <h3 className="font-semibold text-gray-900 mb-2">Implementation</h3>
         <p className="text-sm text-gray-600 mb-3">
           To use the <strong>{styles.find(s => s.id === selectedStyle)?.name}</strong>, 
-          I'll replace your current Navigation component.
+          I&apos;ll replace your current Navigation component.
         </p>
         <button 
           onClick={() => {

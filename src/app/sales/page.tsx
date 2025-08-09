@@ -397,7 +397,7 @@ export default function SalesPage() {
                 <span className="text-gray-600">Mostrando: <span className="font-semibold text-gray-900">{filteredSales.length}</span> ventas</span>
                 {searchTerm && (
                   <span className="text-blue-600">
-                    Filtrado por: "<span className="font-medium">{searchTerm}</span>"
+                    Filtrado por: &quot;<span className="font-medium">{searchTerm}</span>&quot;
                   </span>
                 )}
               </div>

@@ -10,12 +10,13 @@ async function ensureAutoTableLoaded() {
     try {
       // Load the autoTable module and store the function
       if (typeof window === 'undefined') {
-        // Server-side: use require
-        autoTable = require('jspdf-autotable').default || require('jspdf-autotable')
+        // Server-side: use dynamic import
+        const autoTableModule = await import('jspdf-autotable')
+        autoTable = autoTableModule.default || autoTableModule
       } else {
         // Client-side: use dynamic import
-        const module = await import('jspdf-autotable')
-        autoTable = module.default || module
+        const autoTableClientModule = await import('jspdf-autotable')
+        autoTable = autoTableClientModule.default || autoTableClientModule
       }
       
       autoTableInitialized = true

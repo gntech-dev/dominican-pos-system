@@ -231,7 +231,7 @@ export default function Navigation() {
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-500 text-sm font-medium">Today's Revenue</p>
+                <p className="text-gray-500 text-sm font-medium">Today&apos;s Revenue</p>
                 <p className="text-gray-900 text-2xl font-bold">$15,750</p>
                 <p className="text-emerald-600 text-sm font-medium mt-1">+12.5% from yesterday</p>
               </div>

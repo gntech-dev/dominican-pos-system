@@ -1,0 +1,394 @@
+/**
+ * @file DGII Reports Page
+ * @description Generate and download DGII 606/607 XML reports
+ * @author POS System
+ */
+'use client'
+
+import { useState } from 'react'
+import { format } from 'date-fns'
+
+interface ReportSummary {
+  reportType: string
+  period: string
+  company: {
+    rnc: string
+    razonSocial: string
+  }
+  summary: {
+    totalRecords: number
+    totalAmount: number
+    totalTax: number
+  }
+  data: any[]
+}
+
+export default function DGIIReportsPage() {
+  const [reportType, setReportType] = useState<'606' | '607'>('607')
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date()
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    return format(lastMonth, 'yyyy-MM')
+  })
+  const [isLoading, setIsLoading] = useState(false)
+  const [reportPreview, setReportPreview] = useState<ReportSummary | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const generatePreview = async () => {
+    setIsLoading(true)
+    setError(null)
+    setReportPreview(null)
+
+    try {
+      const response = await fetch(
+        `/api/dgii-reports?type=${reportType}&month=${selectedMonth}&format=preview`,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to generate preview')
+      }
+
+      const data = await response.json()
+      setReportPreview(data)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const downloadXML = async () => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch(
+        `/api/dgii-reports?type=${reportType}&month=${selectedMonth}&format=xml`,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to generate XML')
+      }
+
+      // Download the XML file
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.style.display = 'none'
+      a.href = url
+      a.download = `DGII_${reportType}_${selectedMonth.replace('-', '')}.xml`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-DO', {
+      style: 'currency',
+      currency: 'DOP'
+    }).format(amount)
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">
+            Reportes DGII 606/607
+          </h1>
+          <p className="mt-2 text-gray-600">
+            Genere reportes XML para la Dirección General de Impuestos Internos
+          </p>
+        </div>
+
+        {/* Report Configuration */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            Configuración del Reporte
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Report Type */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tipo de Reporte
+              </label>
+              <select
+                value={reportType}
+                onChange={(e) => setReportType(e.target.value as '606' | '607')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="607">607 - Ventas</option>
+                <option value="606">606 - Compras</option>
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                {reportType === '607' 
+                  ? 'Reporte de ingresos por operaciones de ventas'
+                  : 'Reporte de compras y gastos deducibles'
+                }
+              </p>
+            </div>
+
+            {/* Month Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Período (Mes)
+              </label>
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Seleccione el mes para generar el reporte
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col justify-end space-y-2">
+              <button
+                onClick={generatePreview}
+                disabled={isLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isLoading ? 'Generando...' : 'Vista Previa'}
+              </button>
+              
+              <button
+                onClick={downloadXML}
+                disabled={isLoading || !reportPreview}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Descargar XML
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-8">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Error</h3>
+                <div className="mt-2 text-sm text-red-700">{error}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Report Preview */}
+        {reportPreview && (
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Vista Previa - Reporte {reportPreview.reportType}
+            </h2>
+            
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">
+                  {reportPreview.summary.totalRecords}
+                </div>
+                <div className="text-sm text-blue-600">Total Registros</div>
+              </div>
+              
+              <div className="bg-green-50 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">
+                  {formatCurrency(reportPreview.summary.totalAmount)}
+                </div>
+                <div className="text-sm text-green-600">Monto Total</div>
+              </div>
+              
+              <div className="bg-yellow-50 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-yellow-600">
+                  {formatCurrency(reportPreview.summary.totalTax)}
+                </div>
+                <div className="text-sm text-yellow-600">ITBIS Total</div>
+              </div>
+              
+              <div className="bg-purple-50 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-purple-600">
+                  {reportPreview.period}
+                </div>
+                <div className="text-sm text-purple-600">Período</div>
+              </div>
+            </div>
+
+                        {/* Validation Status - Simplified for build */}
+            
+            {/* Additional Details for 607 Reports */}
+            {reportPreview.reportType === '607' && (
+              <div className="mb-6 p-4 rounded-lg bg-blue-50">
+                <h4 className="font-semibold mb-3">Desglose NCF</h4>
+                <p>Información de NCF disponible</p>
+              </div>
+            )}
+
+            {/* Customer Types Summary */}
+            <div className="mb-6 p-4 rounded-lg bg-green-50">
+              <h4 className="font-semibold mb-3">Tipos de Cliente</h4>
+              <p>Resumen de tipos de cliente disponible</p>
+            </div>
+
+            {/* Supplier Count Summary */}
+            <div className="mb-6 p-4 rounded-lg bg-indigo-50">
+              <h4 className="font-semibold mb-3">Resumen de Proveedores</h4>
+              <p>Información de proveedores disponible</p>
+            </div>
+
+            {/* Message Display */}
+            <div className="mb-6 p-4 rounded-lg bg-amber-50">
+              <h4 className="font-semibold mb-3">Mensajes del Sistema</h4>
+              <p>Estado del reporte: {reportPreview.summary.totalRecords} registros procesados</p>
+            </div>
+
+            {/* Additional Details for 607 Reports */}
+            {reportPreview.reportType === '607' && (reportPreview.summary as any).ncfBreakdown && (
+              <div className="mb-6 p-4 rounded-lg bg-blue-50">
+                <h4 className="font-semibold mb-3">Desglose NCF</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {Object.entries((reportPreview.summary as any).ncfBreakdown).map(([ncfType, count]: [string, any]) => (
+                    <div key={ncfType} className="text-center">
+                      <div className="text-lg font-bold text-blue-600">{count}</div>
+                      <div className="text-sm text-gray-600">{ncfType}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Customer Types for 607 */}
+            {/* Customer Types Summary */}
+            {(reportPreview.summary as any).customerTypes && (
+              <div className="mb-6 p-4 rounded-lg bg-green-50">
+                <h4 className="font-semibold mb-3">Tipos de Cliente</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-green-600">{(reportPreview.summary as any).customerTypes.withRNC}</div>
+                    <div className="text-sm text-gray-600">Con RNC</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-green-600">{(reportPreview.summary as any).customerTypes.withCedula}</div>
+                    <div className="text-sm text-gray-600">Con Cédula</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-green-600">{(reportPreview.summary as any).customerTypes.walkIn}</div>            {/* Supplier Count for 606 */}
+                        {/* Supplier Count Summary */}
+            {(reportPreview.summary as any).supplierCount && (
+              <div className="mb-6 p-4 rounded-lg bg-indigo-50">
+                <h4 className="font-semibold mb-3">Resumen de Proveedores</h4>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-indigo-600">{(reportPreview.summary as any).supplierCount}</div>
+
+            {/* Message Display */}
+            {(reportPreview as any).message && (
+              <div className={`p-4 rounded-lg mb-4 ${
+                reportPreview.summary.totalRecords === 0 
+                  ? 'bg-yellow-50 border border-yellow-200' 
+                  : 'bg-green-50 border border-green-200'
+              }`}>
+                <p className={`text-sm ${
+                  reportPreview.summary.totalRecords === 0 ? 'text-yellow-800' : 'text-green-800'
+                }`}>
+                  {(reportPreview as any).message}
+                </p>
+              </div>
+            )}
+
+            {/* Company Info */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+              <h3 className="font-semibold text-gray-900 mb-2">Información de la Empresa</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-medium">RNC:</span> {reportPreview.company.rnc}
+                </div>
+                <div>
+                  <span className="font-medium">Razón Social:</span> {reportPreview.company.razonSocial}
+                </div>
+              </div>
+            </div>
+
+            {/* Data Preview Table */}
+            {reportPreview.data.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-3">
+                  Primeros {reportPreview.data.length} registros
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          RNC
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          NCF/Comprobante
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Fecha
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Monto
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          ITBIS
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {reportPreview.data.map((record, index) => (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {record.rnc}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {record.numeroComprobante}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {record.fechaComprobante}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {formatCurrency(record.montoFacturado)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {formatCurrency(record.itbisFacturado)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
