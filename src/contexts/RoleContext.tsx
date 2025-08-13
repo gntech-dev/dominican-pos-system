@@ -28,6 +28,19 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
 
   const loadUser = async () => {
     try {
+      // Development environment: Always use mock user for easier development
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔧 Development mode: Using mock admin user')
+        const mockUser = {
+          userId: 'dev-admin-1',
+          email: 'admin@posdev.com',
+          role: 'ADMIN' as UserRole
+        }
+        setUser(mockUser)
+        setLoading(false)
+        return
+      }
+
       const hasToken = typeof window !== 'undefined' && localStorage.getItem('token')
       
       if (hasToken) {
@@ -45,12 +58,23 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
           setUser(null)
         }
       } else {
-        // No token exists - set user to null (should redirect to login)
+        // No token - redirect to login in production
         setUser(null)
       }
     } catch (error) {
       console.error('❌ Error loading user:', error)
-      setUser(null)
+      // In production, handle error appropriately
+      if (process.env.NODE_ENV === 'development') {
+        // Development fallback: Create mock user even on error
+        const mockUser = {
+          userId: 'dev-admin-1',
+          email: 'admin@posdev.com',
+          role: 'ADMIN' as UserRole
+        }
+        setUser(mockUser)
+      } else {
+        setUser(null)
+      }
     } finally {
       setLoading(false)
     }

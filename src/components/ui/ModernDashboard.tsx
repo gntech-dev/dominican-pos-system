@@ -194,23 +194,23 @@ export default function ModernDashboard() {
   )
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-6 space-y-6 max-w-7xl mx-auto bg-neutral-50 min-h-screen">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-neutral-200 p-6 rounded-lg border-4 border-neutral-800 shadow-xl">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">
+          <h1 className="text-4xl font-black text-neutral-950 drop-shadow-sm">
             Dashboard
           </h1>
-          <p className="mt-1 text-sm text-neutral-500">
+          <p className="mt-2 text-lg text-neutral-900 font-bold">
             Bienvenido, {user.email} • {formatDate(currentTime)} {currentTime.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>
         
         <div className="mt-4 sm:mt-0 flex space-x-3">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="lg" className="font-black border-4 border-neutral-800 hover:bg-neutral-800 hover:text-white">
             📊 Ver Reportes
           </Button>
-          <Button size="sm" className="bg-green-600 hover:bg-green-700">
+          <Button size="lg" variant="success" className="font-black shadow-lg">
             🛒 Nueva Venta
           </Button>
         </div>
@@ -221,18 +221,18 @@ export default function ModernDashboard() {
         {filteredMetrics.map((metric) => (
           <div
             key={metric.id}
-            className="bg-white rounded-lg border border-neutral-200 p-6 shadow-sm hover:shadow-md transition-shadow"
+            className="bg-neutral-100 rounded-lg border-4 border-neutral-800 p-6 shadow-xl hover:shadow-2xl transition-all duration-200 hover:border-primary-600 hover:bg-neutral-50"
           >
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <span className="text-2xl">{metric.icon}</span>
+                <span className="text-4xl drop-shadow-sm">{metric.icon}</span>
               </div>
               <div className="ml-4 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-neutral-500 truncate">
+                  <dt className="text-lg font-black text-neutral-950 truncate uppercase tracking-wide">
                     {metric.title}
                   </dt>
-                  <dd className="text-2xl font-bold text-neutral-900">
+                  <dd className="text-4xl font-black text-neutral-950 drop-shadow-sm">
                     {metric.value}
                   </dd>
                 </dl>
@@ -243,11 +243,11 @@ export default function ModernDashboard() {
               <div className="mt-4 flex items-center">
                 <span
                   className={cn(
-                    'text-sm font-medium',
-                    metric.changeType === 'increase' && 'text-green-600',
-                    metric.changeType === 'decrease' && 'text-red-600',
-                    metric.changeType === 'neutral' && 'text-neutral-600',
-                    metric.changeType === 'warning' && 'text-yellow-600'
+                    'text-base font-black px-2 py-1 rounded',
+                    metric.changeType === 'increase' && 'text-white bg-green-800',
+                    metric.changeType === 'decrease' && 'text-white bg-red-800',
+                    metric.changeType === 'neutral' && 'text-white bg-neutral-800',
+                    metric.changeType === 'warning' && 'text-white bg-yellow-800'
                   )}
                 >
                   {metric.changeType === 'increase' && '↗ +'}
@@ -255,7 +255,7 @@ export default function ModernDashboard() {
                   {metric.change}%
                 </span>
                 {metric.description && (
-                  <span className="ml-2 text-xs text-neutral-500">
+                  <span className="ml-2 text-base font-black text-neutral-950">
                     {metric.description}
                   </span>
                 )}
@@ -267,25 +267,25 @@ export default function ModernDashboard() {
 
       {/* Quick Actions */}
       <div>
-        <h2 className="text-lg font-semibold text-neutral-900 mb-4">
+        <h2 className="text-xl font-bold text-neutral-950 mb-4">
           Acciones Rápidas
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredQuickActions.map((action) => (
             <a
               key={action.id}
               href={action.href}
-              className="group bg-white rounded-lg border border-neutral-200 p-6 shadow-sm hover:shadow-md hover:border-primary-300 transition-all"
+              className="group block p-6 bg-neutral-100 border-4 border-neutral-800 rounded-lg hover:bg-neutral-50 hover:border-primary-600 transition-all duration-200 hover:shadow-xl"
             >
               <div className="flex items-center">
-                <span className="text-2xl group-hover:scale-110 transition-transform">
+                <span className="text-3xl group-hover:scale-110 transition-transform drop-shadow-sm">
                   {action.icon}
                 </span>
                 <div className="ml-4">
-                  <h3 className="text-sm font-medium text-neutral-900 group-hover:text-primary-600">
+                  <h3 className="text-lg font-black text-neutral-950 group-hover:text-primary-800 uppercase tracking-wide">
                     {action.title}
                   </h3>
-                  <p className="text-xs text-neutral-500 mt-1">
+                  <p className="text-base font-bold text-neutral-900 mt-1">
                     {action.description}
                   </p>
                 </div>
@@ -298,25 +298,25 @@ export default function ModernDashboard() {
       {/* Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-900 mb-4">
+          <h2 className="text-xl font-black text-neutral-950 mb-4 uppercase tracking-wide">
             Actividad Reciente
           </h2>
-          <div className="bg-white rounded-lg border border-neutral-200 shadow-sm">
-            <div className="divide-y divide-neutral-200">
+          <div className="bg-neutral-100 rounded-lg border-4 border-neutral-800 shadow-xl">
+            <div className="divide-y-4 divide-neutral-300">
               {recentActivity.map((activity) => (
-                <div key={activity.id} className="p-4 hover:bg-neutral-50">
+                <div key={activity.id} className="p-6 hover:bg-neutral-50 transition-colors">
                   <div className="flex items-start">
-                    <span className="flex-shrink-0 text-lg">{activity.icon}</span>
-                    <div className="ml-3 flex-1 min-w-0">
-                      <p className="text-sm font-medium text-neutral-900">
+                    <span className="flex-shrink-0 text-2xl drop-shadow-sm">{activity.icon}</span>
+                    <div className="ml-4 flex-1 min-w-0">
+                      <p className="text-base font-black text-neutral-950">
                         {activity.description}
                       </p>
-                      <div className="mt-1 flex items-center text-xs text-neutral-500">
+                      <div className="mt-2 flex items-center text-sm font-bold text-neutral-900">
                         <span>{activity.time}</span>
                         {activity.amount && (
                           <>
-                            <span className="mx-1">•</span>
-                            <span className="font-medium text-green-600">
+                            <span className="mx-2 text-lg">•</span>
+                            <span className="font-black text-green-800 bg-green-100 px-2 py-1 rounded">
                               {formatCurrency(activity.amount)}
                             </span>
                           </>
@@ -327,41 +327,36 @@ export default function ModernDashboard() {
                 </div>
               ))}
             </div>
-            <div className="p-4 border-t border-neutral-200">
-              <Button variant="outline" size="sm" className="w-full">
-                Ver Toda la Actividad
-              </Button>
-            </div>
           </div>
         </div>
 
         {/* Quick Stats */}
         <div>
-          <h2 className="text-lg font-semibold text-neutral-900 mb-4">
+          <h2 className="text-xl font-black text-neutral-950 mb-4 uppercase tracking-wide">
             Resumen Rápido
           </h2>
-          <div className="bg-white rounded-lg border border-neutral-200 shadow-sm p-6 space-y-4">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-neutral-600">Productos activos</span>
-              <span className="text-lg font-semibold text-neutral-900">1,247</span>
+          <div className="bg-neutral-100 rounded-lg border-4 border-neutral-800 shadow-xl p-6 space-y-6">
+            <div className="flex justify-between items-center py-2 border-b-2 border-neutral-300">
+              <span className="text-base font-bold text-neutral-950">Productos activos</span>
+              <span className="text-xl font-black text-neutral-950 bg-neutral-200 px-3 py-1 rounded">1,247</span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-neutral-600">Clientes registrados</span>
-              <span className="text-lg font-semibold text-neutral-900">589</span>
+            <div className="flex justify-between items-center py-2 border-b-2 border-neutral-300">
+              <span className="text-base font-bold text-neutral-950">Clientes registrados</span>
+              <span className="text-xl font-black text-neutral-950 bg-neutral-200 px-3 py-1 rounded">589</span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-neutral-600">Ventas este mes</span>
-              <span className="text-lg font-semibold text-green-600">
+            <div className="flex justify-between items-center py-2 border-b-2 border-neutral-300">
+              <span className="text-base font-bold text-neutral-950">Ventas este mes</span>
+              <span className="text-xl font-black text-white bg-green-800 px-3 py-1 rounded shadow-sm">
                 {formatCurrency(347250.00)}
               </span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-neutral-600">NCF disponibles</span>
-              <span className="text-lg font-semibold text-primary-600">49,999,876</span>
+            <div className="flex justify-between items-center py-2 border-b-2 border-neutral-300">
+              <span className="text-base font-bold text-neutral-950">NCF disponibles</span>
+              <span className="text-xl font-black text-white bg-primary-800 px-3 py-1 rounded shadow-sm">49,999,876</span>
             </div>
             
-            <div className="pt-4 border-t border-neutral-200">
-              <Button variant="outline" className="w-full">
+            <div className="pt-6 border-t-4 border-neutral-800">
+              <Button variant="outline" className="w-full text-lg font-black border-4 border-neutral-800 hover:bg-neutral-800 hover:text-white">
                 📊 Ver Reportes Detallados
               </Button>
             </div>

@@ -90,7 +90,7 @@
   }
 }
 
-/* Base styles */
+/* Base styles with improved contrast */
 * {
   box-sizing: border-box;
 }
@@ -98,9 +98,74 @@
 html {
   font-size: 16px; /* Ensure 16px minimum for accessibility */
   line-height: 1.5;
-  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+body {
+  font-family: var(--font-family-sans);
+  background-color: rgb(var(--color-neutral-50));
+  color: rgb(23 23 23); /* Much darker text for better contrast */
+  min-height: 100vh;
+  font-weight: 500; /* Medium weight for better readability */
+}
+
+/* High contrast text styles */
+.text-high-contrast {
+  color: rgb(var(--color-neutral-900));
+}
+
+.text-medium-contrast {
+  color: rgb(var(--color-neutral-700));
+}
+
+.text-low-contrast {
+  color: rgb(var(--color-neutral-600));
+}
+
+/* Enhanced button contrast */
+.btn-primary {
+  background-color: rgb(var(--color-primary-600));
+  color: white;
+  border: 2px solid rgb(var(--color-primary-600));
+}
+
+.btn-primary:hover {
+  background-color: rgb(var(--color-primary-700));
+  border-color: rgb(var(--color-primary-700));
+}
+
+.btn-primary:focus {
+  outline: 2px solid rgb(var(--color-primary-500));
+  outline-offset: 2px;
+}
+
+/* Enhanced form contrast */
+.form-input {
+  background-color: white;
+  border: 2px solid rgb(var(--color-neutral-300));
+  color: rgb(var(--color-neutral-900));
+}
+
+.form-input:focus {
+  border-color: rgb(var(--color-primary-600));
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(var(--color-primary-600) / 0.1);
+}
+
+/* Card backgrounds with better contrast */
+.card {
+  background-color: white;
+  border: 1px solid rgb(var(--color-neutral-200));
+  box-shadow: var(--shadow-sm);
+}
+
+.card-header {
+  background-color: rgb(var(--color-neutral-50));
+  border-bottom: 1px solid rgb(var(--color-neutral-200));
+}
+
+/* Reset default styles */
 body {
   margin: 0;
   background: rgb(var(--color-neutral-50));
@@ -423,4 +488,56 @@ select {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* High contrast utilities for maximum readability */
+.text-ultra-dark {
+  color: #0a0a0a !important;
+  font-weight: 600 !important;
+}
+
+.text-extra-dark {
+  color: #171717 !important;
+  font-weight: 500 !important;
+}
+
+.text-dark-readable {
+  color: #262626 !important;
+  font-weight: 500 !important;
+}
+
+/* High contrast backgrounds */
+.bg-high-contrast {
+  background-color: white !important;
+  border: 2px solid #d4d4d8 !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important;
+}
+
+/* Accessible form styles */
+.form-high-contrast input,
+.form-high-contrast select,
+.form-high-contrast textarea {
+  border: 2px solid #525252 !important;
+  background-color: white !important;
+  color: #0a0a0a !important;
+  font-weight: 500 !important;
+}
+
+.form-high-contrast label {
+  color: #171717 !important;
+  font-weight: 600 !important;
+}
+
+/* High contrast buttons */
+.btn-ultra-contrast {
+  background-color: #1d4ed8 !important;
+  color: white !important;
+  border: 2px solid #1e40af !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important;
+}
+
+.btn-ultra-contrast:hover {
+  background-color: #1e40af !important;
+  border-color: #1e3a8a !important;
 }
